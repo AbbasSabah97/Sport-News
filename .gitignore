@@ -1,6 +1,8 @@
+.gradle/
+**/build/
+.idea/
+*.iml
+local.properties
 __pycache__/
 *.pyc
 .DS_Store
-ios/build/
-ios/WorldPulse.xcodeproj/
-ios/WorldPulse-unsigned.ipa
