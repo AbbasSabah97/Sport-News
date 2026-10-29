@@ -96,7 +96,8 @@ def parse_feed(xml, source, now):
         if not title or not url or not (-900<=(now-published).total_seconds()<=172800): continue
         results.append(dict(id=hashlib.sha256(url.encode()).hexdigest()[:18],title=title[:180],
             summary=clean(field(item,"description","summary","content"))[:150],
-            url=url,source=source[0],language=source[2],published_at=published.isoformat()))
+            url=url,source=(field(item,"source") if source[0].startswith("أخبار ") and field(item,"source") else source[0]),language=source[2],published_at=published.isoformat(),
+            category=(source[3] if len(source)>3 else None)))
     return results
 
 def same(a,b):
@@ -109,12 +110,18 @@ def same(a,b):
 
 def classify(title):
     n=norm(title)
-    for name,words in [
-        ("اقتصاد",("economy","market","inflation","bank","stock","oil","اقتصاد","نفط","مال")),
-        ("تقنية",("technology","artificial intelligence","software","cyber","chip","ذكاء","تقنيه","تقنية")),
-        ("رياضة",("football","league","soccer","goal","دوري","كاس","مباراه")),
-        ("سياسة",("election","president","minister","parliament","انتخابات","رئيس","وزير"))]:
-        if any(w in n for w in words):return name
+    def words(*phrases):
+        return any(re.search(r"(?<!\w)"+re.escape(norm(phrase))+r"(?!\w)",n) for phrase in phrases)
+    if words("الذكاء الاصطناعي","الذكاء التوليدي","chatgpt","openai","gemini ai","artificial intelligence","machine learning","نماذج اللغة","تعلم الالة","تعلم الآلة","روبوتات المحادثة"):
+        return "الذكاء الاصطناعي"
+    if words("رياضة","دوري","مباراة","مباريات","كرة القدم","football","soccer","league","champions league","كأس","كاس"):
+        return "رياضة"
+    if words("اقتصاد","اقتصادية","الأسهم","بورصة","تضخم","النفط","اقتصادي","البنوك","الأسواق","economy","inflation","stock market","oil prices","business"):
+        return "اقتصاد"
+    if words("تقنية","تكنولوجيا","التقنية","تكنولوجي","هواتف","برمجيات","cybersecurity","technology","software","chips"):
+        return "تقنية"
+    if words("انتخابات","الرئيس","البرلمان","الحكومة","الرئاسية","دبلوماسية","president","minister","election","government","diplomacy"):
+        return "سياسة"
     return "العالم"
 
 def cluster(items,now):
@@ -128,24 +135,54 @@ def cluster(items,now):
         a=dict(g["lead"])
         a["source_count"]=len(g["sources"])
         a["related_sources"]=sorted(g["sources"])[:5]
-        a["category"]=classify(a["title"])
+        a["category"]=a.get("category") or classify(a["title"])
         age=max(0,(now-dt.datetime.fromisoformat(a["published_at"])).total_seconds()/3600)
         a["rank"]=round(2.5*min(len(g["sources"]),4)+max(0,3-age/6),2)
         results.append(a)
     return sorted(results,key=lambda a:(a["rank"],a["published_at"]),reverse=True)[:80]
 
 def news(now):
+    from .arabic import ARABIC_SOURCES,arabize_items,arabic_text
+    sources=ARABIC_SOURCES+SOURCES
     raw=[];warnings=[]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=7) as pool:
-        jobs={pool.submit(request,s[1]):s for s in SOURCES}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=9) as pool:
+        jobs={pool.submit(request,source[1]):source for source in sources}
         for job in concurrent.futures.as_completed(jobs):
             source=jobs[job]
-            try:raw.extend(parse_feed(job.result(),source,now))
+            try:
+                incoming=parse_feed(job.result(),source,now)
+                for a in incoming:
+                    a["category"]=a.get("category") or classify(a["title"])
+                raw.extend(incoming)
             except (OSError,ValueError,ET.ParseError,TimeoutError) as exc:
                 warnings.append(f"{source[0]}: {type(exc).__name__}")
-    unique=cluster(raw,now)
-    digest=[{k:v for k,v in a.items() if k in ("id","source","source_count","url","category")} | {"headline":a["title"]} for a in unique[:10]]
-    return unique,digest,warnings
+    # Arabic originals are always prioritized. Best-effort automatic translation
+    # extends coverage, but untranslated English headlines are never published.
+    raw.sort(key=lambda x:(0 if arabic_text(x["title"]) else 1,-dt.datetime.fromisoformat(x["published_at"]).timestamp()))
+    translated=arabize_items(raw,limit=30)
+    clean_items=[]
+    for a in translated:
+        if not arabic_text(a["title"]):continue
+        if a.get("summary") and not arabic_text(a["summary"],4): a["summary"]=""
+        a.pop("translated",None)
+        clean_items.append(a)
+    unique=cluster(clean_items,now)
+    # Balance all real categories rather than letting a single source dominate
+    # the first 80 stories. We never invent placeholder news for empty sections.
+    topics=["العالم","سياسة","اقتصاد","تقنية","الذكاء الاصطناعي","رياضة"]
+    balanced=[];seen=set()
+    for topic in topics:
+        candidates=[a for a in unique if a["category"]==topic]
+        for a in candidates[:12]:
+            if a["id"] not in seen:
+                balanced.append(a);seen.add(a["id"])
+    for a in unique:
+        if a["id"] not in seen and len(balanced)<80:
+            balanced.append(a);seen.add(a["id"])
+    balanced=balanced[:80]
+    counts={name:sum(a["category"]==name for a in balanced) for name in topics}
+    digest=[{k:v for k,v in a.items() if k in ("id","source","source_count","url","category")} | {"headline":a["title"]} for a in balanced[:10]]
+    return balanced,digest,warnings,counts
 
 def league_code(league):
     lid=league.get("id"); name=norm(league.get("name",""));country=norm(league.get("country",""))
@@ -160,35 +197,44 @@ def league_code(league):
     return None
 
 def fixtures(now):
+    from .football_fallback import fallback_fixtures
     key=os.environ.get("API_FOOTBALL_KEY","").strip()
-    if not key:return [],"not_configured","أضف API_FOOTBALL_KEY في GitHub Secrets"
-    day=now.astimezone(BAGHDAD).date().isoformat()
-    url="https://v3.football.api-sports.io/fixtures?"+urllib.parse.urlencode({"date":day,"timezone":"Asia/Baghdad"})
-    try:
-        payload=json.loads(request(url,{"x-apisports-key":key}))
-        if payload.get("errors"):return [],"error",str(payload["errors"])[:250]
-        rows=[]
-        for item in payload.get("response",[]):
-            lg=item.get("league") or {};code=league_code(lg)
-            if not code:continue
-            fx=item.get("fixture") or {};teams=item.get("teams") or {};goals=item.get("goals") or {}
-            rows.append(dict(id=str(fx.get("id","")),competition_id=code,league=dict(COMPETITIONS)[code],
-                home=(teams.get("home") or {}).get("name") or "—",away=(teams.get("away") or {}).get("name") or "—",
-                home_goals=goals.get("home"),away_goals=goals.get("away"),
-                kickoff=fx.get("date",""),status=(fx.get("status") or {}).get("short") or "TBD"))
-        return sorted(rows,key=lambda x:(x["kickoff"],x["league"])),"ok",None
-    except (OSError,ValueError,TimeoutError) as exc:
-        return [],"error",f"تعذر تحديث المباريات: {type(exc).__name__}"
+    if key:
+        day=now.astimezone(BAGHDAD).date().isoformat()
+        url="https://v3.football.api-sports.io/fixtures?"+urllib.parse.urlencode({
+            "date":day,"timezone":"Asia/Baghdad"})
+        try:
+            payload=json.loads(request(url,{"x-apisports-key":key}))
+            if not payload.get("errors"):
+                rows=[]
+                for item in payload.get("response",[]):
+                    lg=item.get("league") or {};code=league_code(lg)
+                    if not code:continue
+                    fx=item.get("fixture") or {};teams=item.get("teams") or {};goals=item.get("goals") or {}
+                    rows.append(dict(id=str(fx.get("id","")),competition_id=code,
+                        league=dict(COMPETITIONS)[code],
+                        home=(teams.get("home") or {}).get("name") or "—",
+                        away=(teams.get("away") or {}).get("name") or "—",
+                        home_goals=goals.get("home"),away_goals=goals.get("away"),
+                        kickoff=fx.get("date",""),status=(fx.get("status") or {}).get("short") or "TBD",
+                        provider="API-Football"))
+                if rows:
+                    return sorted(rows,key=lambda x:x["kickoff"]),"ok",None,sorted({x["competition_id"] for x in rows})
+        except (OSError,ValueError,TypeError,KeyError):
+            pass
+    return fallback_fixtures(now)
 
 def build(now=None):
     now=now or dt.datetime.now(UTC)
-    stories,digest,warnings=news(now)
-    matches,status,sports_error=fixtures(now)
+    stories,digest,warnings,counts=news(now)
+    matches,status,sports_error,checked=fixtures(now)
     return dict(schema_version=1,generated_at=now.isoformat(),timezone="Asia/Baghdad",
         local_date=now.astimezone(BAGHDAD).date().isoformat(),news_status="ok" if stories else "unavailable",
-        news=stories,digest=digest,digest_note="ملخص آلي للعناوين؛ افتح الخبر لمعرفة التفاصيل.",
+        news=stories,digest=digest,digest_note="عناوين عربية موجزة؛ افتح رابط المصدر للاطلاع على التفاصيل.",
+        category_counts=counts,
         source_warnings=warnings,sports_status=status,sports_error=sports_error,
-        competitions=[dict(id=k,name=v) for k,v in COMPETITIONS],matches=matches)
+        competitions=[dict(id=k,name=v) for k,v in COMPETITIONS],matches=matches,
+        sports_checked=checked)
 
 def main():
     path=Path(os.getenv("OUTPUT_JSON","docs/feed.json"))
@@ -198,8 +244,10 @@ def main():
         try:old=json.loads(path.read_text(encoding="utf-8"))
         except (ValueError,OSError):old={}
         if not result["news"] and old.get("news"):
-            result["news"]=[{k:v for k,v in item.items() if k!="image_url"} for item in old["news"][:80]]
-            result["digest"]=old.get("digest",[])[:10]
+            from .arabic import arabic_text
+            result["news"]=[{k:v for k,v in item.items() if k!="image_url"}
+                            for item in old["news"][:80] if arabic_text(item.get("title",""))]
+            result["digest"]=[d for d in old.get("digest",[])[:10] if arabic_text(d.get("headline",""))]
             result["news_status"]="stale"
         if result["sports_status"]=="error" and old.get("local_date")==result["local_date"] and old.get("matches"):
             result["matches"]=old["matches"];result["sports_status"]="stale"
