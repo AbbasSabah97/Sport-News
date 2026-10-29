@@ -1,7 +1,9 @@
 import datetime as dt
 import unittest
 import xml.etree.ElementTree as ET
-from backend.collector import UTC, parse_feed, same, cluster, canonical, league_code, SOURCES, COMPETITIONS
+from backend.collector import UTC, parse_feed, same, cluster, canonical, league_code, classify, SOURCES, COMPETITIONS
+from backend.arabic import arabic_text, arabize_items, ARABIC_SOURCES
+from backend.football_fallback import parse_espn, parse_sportsdb
 
 NOW = dt.datetime(2026,10,29,12,tzinfo=UTC)
 class CollectorTests(unittest.TestCase):
@@ -27,6 +29,34 @@ class CollectorTests(unittest.TestCase):
     def test_article_limit(self):
         arr=[dict(id=str(i),title=f"Unique story headline {i} city {i} topic {i}",url=f"https://example.org/{i}",source="A",language="en",published_at=NOW.isoformat()) for i in range(95)]
         self.assertLessEqual(len(cluster(arr,NOW)),80)
+    def test_ai_classification(self):
+        self.assertEqual(classify("شركة تطلق نموذجاً جديداً للذكاء الاصطناعي"),"الذكاء الاصطناعي")
+        self.assertEqual(classify("تقرير عن تطور الرقائق الإلكترونية"),"العالم")
+        self.assertEqual(classify("أخبار الدوري الإنجليزي في مباراة ليفربول"),"رياضة")
+    def test_arabic_language_filter(self):
+        self.assertTrue(arabic_text("خبر عن الذكاء الاصطناعي والتكنولوجيا"))
+        self.assertFalse(arabic_text("OpenAI launches a new research platform"))
+        self.assertEqual(arabize_items([{"title":"الذكاء الاصطناعي يغير العالم","summary":"A foreign caption"}],limit=0)[0]["summary"],"")
+    def test_ai_feed_is_typed(self):
+        self.assertTrue(any(s[3]=="الذكاء الاصطناعي" for s in ARABIC_SOURCES))
+        self.assertTrue(all(s[2]=="ar" for s in ARABIC_SOURCES))
+    def test_espn_scoreboard_parsing(self):
+        event={"events":[{"id":"45","date":"2026-10-29T20:00:00Z",
+          "competitions":[{"competitors":[
+          {"homeAway":"home","team":{"displayName":"Arsenal"},"score":"2"},
+          {"homeAway":"away","team":{"displayName":"Chelsea"},"score":"1"}],
+          "status":{"type":{"state":"post","name":"STATUS_FINAL"}}}]}]}
+        results=parse_espn(event,"england","2026-10-29")
+        self.assertEqual(len(results),1)
+        self.assertEqual(results[0]["home_goals"],2)
+        self.assertEqual(results[0]["status"],"FT")
+    def test_espn_date_baghdad(self):
+        event={"events":[{"id":"4","date":"2026-10-29T22:30:00Z",
+          "competitions":[{"competitors":[
+          {"homeAway":"home","team":{"displayName":"A"}},
+          {"homeAway":"away","team":{"displayName":"B"}}]}]}]}
+        self.assertEqual(len(parse_espn(event,"england","2026-10-30")),1)
+        self.assertEqual(len(parse_espn(event,"england","2026-10-29")),0)
     def test_competitions(self):
         self.assertEqual(len(COMPETITIONS),7)
         self.assertEqual(league_code({"id":39,"name":"Premier League","country":"England"}),"england")

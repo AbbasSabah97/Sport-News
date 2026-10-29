@@ -44,7 +44,7 @@ public class MainActivity extends Activity {
     private static final int ACCENT = Color.rgb(106,48,34);
     private static final ZoneId BAGHDAD = ZoneId.of("Asia/Baghdad");
     private static final String[] TABS = {"الرئيسية","الأخبار","المباريات","التقرير","المزيد"};
-    private static final String[] CATEGORIES = {"الكل","العالم","سياسة","اقتصاد","تقنية","رياضة"};
+    private static final String[] CATEGORIES = {"الكل","العالم","سياسة","اقتصاد","تقنية","الذكاء الاصطناعي","رياضة"};
 
     private final FeedClient client = new FeedClient();
     private JSONObject feed = new JSONObject();
@@ -68,6 +68,9 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            getWindow().getDecorView().setForceDarkAllowed(false);
+        }
         getWindow().setStatusBarColor(PAPER);
         getWindow().setNavigationBarColor(PAPER);
         getWindow().getDecorView().setSystemUiVisibility(
@@ -209,7 +212,9 @@ public class MainActivity extends Activity {
             label.setGravity(Gravity.CENTER);
             add(tabView,label);
             tabView.setOnClickListener(v->{
-                tab=index; openedArticle=null; favoritesPage=false; render();
+                tab=index; openedArticle=null; favoritesPage=false;
+                if(tab==1 && category==null)category="الكل";
+                render();
             });
             bottomBar.addView(tabView,new LinearLayout.LayoutParams(0,dp(53),1));
         }
@@ -265,10 +270,20 @@ public class MainActivity extends Activity {
         gap(container,10);
     }
     private JSONArray items(String name) {return feed.optJSONArray(name)==null?new JSONArray():feed.optJSONArray(name);}
+    private boolean isArabic(String value) {
+        if (value==null)return false;
+        int arabic=0,latin=0;
+        for(int i=0;i<value.length();i++){
+            char c=value.charAt(i);
+            if (c>=0x0600 && c<=0x06FF)arabic++;
+            else if ((c>='A' && c<='Z')||(c>='a' && c<='z'))latin++;
+        }
+        return arabic>=5 && arabic>=latin;
+    }
     private JSONObject at(JSONArray data,int i) {return data.optJSONObject(i)==null?new JSONObject():data.optJSONObject(i);}
     private void storyRow(LinearLayout host,JSONObject item,int index,boolean summary) {
         String title=item.optString("title","");
-        if(title.isEmpty())return;
+        if(!isArabic(title))return;
         LinearLayout wrapper=column();
         LinearLayout line=row();
         TextView number=text(String.format(Locale.US,"%02d",index),12,true);
@@ -310,10 +325,26 @@ public class MainActivity extends Activity {
         JSONArray news=items("news");
         if(news.length()==0)note("لا توجد أخبار منشورة حالياً.");
         else {
-            storyRow(container,at(news,0),1,true);
-            for(int i=1;i<Math.min(news.length(),7);i++)
-                storyRow(container,at(news,i),i+1,false);
+            int printed=0;
+            for(int i=0;i<news.length() && printed<7;i++){
+                JSONObject item=at(news,i);
+                if(!isArabic(item.optString("title","")))continue;
+                storyRow(container,item,++printed,printed==1);
+            }
+            if(printed==0)note("لم تتوفر عناوين عربية؛ أعد تحديث البيانات.");
         }
+        heading("آخر أخبار الذكاء الاصطناعي");
+        int aiCount=0;
+        for(int i=0;i<news.length() && aiCount<4;i++){
+            JSONObject item=at(news,i);
+            if("الذكاء الاصطناعي".equals(item.optString("category")) && isArabic(item.optString("title",""))){
+                storyRow(container,item,++aiCount,false);
+            }
+        }
+        if(aiCount==0)note("لا تتوفر حالياً أخبار موثوقة بالعربية في هذا القسم.");
+        add(container,button("عرض قسم الذكاء الاصطناعي",false,()->{
+            tab=1;category="الذكاء الاصطناعي";search="";render();
+        }));
         heading("مباريات اليوم");
         JSONArray games=items("matches");
         if(games.length()==0)note("لا توجد مباريات حالياً أو لم يُضبط مصدر النتائج.");
@@ -369,6 +400,7 @@ public class MainActivity extends Activity {
         int count=0;
         for(int i=0;i<news.length();i++) {
             JSONObject item=at(news,i);
+            if(!isArabic(item.optString("title","")))continue;
             if(!category.equals("الكل")&&!category.equals(item.optString("category")))continue;
             String query=(item.optString("title")+" "+item.optString("summary")+" "+item.optString("source"))
                     .toLowerCase(Locale.ROOT);
@@ -442,14 +474,16 @@ public class MainActivity extends Activity {
         }
         gap(container,15);
         JSONArray matches=items("matches");
-        if("not_configured".equals(feed.optString("sports_status")))note("مباريات اليوم تحتاج إلى تفعيل API_FOOTBALL_KEY في GitHub Secrets.");
+        if("not_configured".equals(feed.optString("sports_status")))note("لم تُفعّل خدمة المباريات بعد؛ يُمكن تفعيل المصدر الأساسي من GitHub.");
+        if("partial".equals(feed.optString("sports_status")))note(feed.optString("sports_error","تغطية جزئية للمباريات اليوم."));
+        if("error".equals(feed.optString("sports_status")))note("تعذر الوصول إلى مصادر بيانات المباريات.");
         int visible=0;
         for(int i=0;i<matches.length();i++) {
             JSONObject m=at(matches,i);
             if(!competition.equals("all")&&!competition.equals(m.optString("competition_id")))continue;
             drawMatch(container,m);visible++;
         }
-        if(visible==0)note("لا توجد مباريات مُدرجة لهذه البطولة في هذا اليوم.");
+        if(visible==0)note("لا توجد مباريات معلنة لهذا اليوم في المصدر المتاح؛ قد يكون الدوري متوقفاً أو تغطيته غير مكتملة.");
         add(container,muted("قد تتأخر تحديثات النتائج؛ لا يُعدّ هذا بثاً لحظياً.",12));
     }
     private void addChip(LinearLayout holder,String id,String name) {
@@ -489,6 +523,7 @@ public class MainActivity extends Activity {
         gap(container,12);
         for(int i=0;i<digest.length();i++) {
             JSONObject story=at(digest,i);
+            if(!isArabic(story.optString("headline","")))continue;
             LinearLayout line=column();
             add(line,text(String.format(Locale.US,"%02d",i+1)+"   "+story.optString("headline",""),16,true));
             gap(line,5);
@@ -497,7 +532,7 @@ public class MainActivity extends Activity {
             if(link.startsWith("https://"))line.setOnClickListener(v->openLink(link));
             card(container,line);
         }
-        if(digest.length()==0)note("لا تتوفر عناوين للتقرير في الوقت الحالي.");
+        if(digest.length()==0)note("لا تتوفر عناوين عربية للتقرير في الوقت الحالي.");
         add(container,muted("هذه خلاصة للعناوين المنشورة لدى المصادر الأصلية، وليست تحليلاً مستقلاً للأحداث.",12));
     }
     private void readReport(JSONArray digest) {
@@ -518,7 +553,7 @@ public class MainActivity extends Activity {
         JSONArray articles=items("news");
         for(int i=0;i<articles.length();i++) {
             JSONObject article=at(articles,i);
-            if(!favorites.contains(article.optString("id")))continue;
+            if(!favorites.contains(article.optString("id")) || !isArabic(article.optString("title","")))continue;
             storyRow(container,article,++count,false);
         }
         if(count==0)note("لا توجد عناوين محفوظة ضمن الأخبار الحالية. يتم حفظ معرّفات المفضلة فقط لتقليل التخزين.");
@@ -534,7 +569,7 @@ public class MainActivity extends Activity {
         }));
         gap(container,12);
         LinearLayout info=column();
-        add(info,text("WorldPulse — Android 1.0",17,true));
+        add(info,text("WorldPulse — Android 1.1",17,true));
         gap(info,10);
         add(info,muted("هوية صحيفة كلاسيكية • ورق عاجي • حبر جوزي",14));
         gap(info,8);

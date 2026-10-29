@@ -28,6 +28,7 @@ jobs:
       - name: Fetch hourly news and sports
         env:
           API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          GOOGLE_TRANSLATE_API_KEY: ${{ secrets.GOOGLE_TRANSLATE_API_KEY }}
         run: python -m backend.collector
       - name: Publish feed
         run: |
