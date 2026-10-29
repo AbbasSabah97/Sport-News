@@ -198,32 +198,8 @@ def league_code(league):
     return None
 
 def fixtures(now):
-    from .football_fallback import fallback_fixtures
-    key=os.environ.get("API_FOOTBALL_KEY","").strip()
-    if key:
-        day=now.astimezone(BAGHDAD).date().isoformat()
-        url="https://v3.football.api-sports.io/fixtures?"+urllib.parse.urlencode({
-            "date":day,"timezone":"Asia/Baghdad"})
-        try:
-            payload=json.loads(request(url,{"x-apisports-key":key}))
-            if not payload.get("errors"):
-                rows=[]
-                for item in payload.get("response",[]):
-                    lg=item.get("league") or {};code=league_code(lg)
-                    if not code:continue
-                    fx=item.get("fixture") or {};teams=item.get("teams") or {};goals=item.get("goals") or {}
-                    rows.append(dict(id=str(fx.get("id","")),competition_id=code,
-                        league=dict(COMPETITIONS)[code],
-                        home=(teams.get("home") or {}).get("name") or "—",
-                        away=(teams.get("away") or {}).get("name") or "—",
-                        home_goals=goals.get("home"),away_goals=goals.get("away"),
-                        kickoff=fx.get("date",""),status=(fx.get("status") or {}).get("short") or "TBD",
-                        provider="API-Football"))
-                if rows:
-                    return sorted(rows,key=lambda x:x["kickoff"]),"ok",None,sorted({x["competition_id"] for x in rows})
-        except (OSError,ValueError,TypeError,KeyError):
-            pass
-    return fallback_fixtures(now)
+    from .weekly_fixtures import weekly_fixtures
+    return weekly_fixtures(now)
 
 def build(now=None):
     now=now or dt.datetime.now(UTC)
@@ -235,7 +211,8 @@ def build(now=None):
         category_counts=counts,
         source_warnings=warnings,sports_status=status,sports_error=sports_error,
         competitions=[dict(id=k,name=v) for k,v in COMPETITIONS],matches=matches,
-        sports_checked=checked)
+        sports_checked=checked,week_start=now.astimezone(BAGHDAD).date().isoformat(),
+        week_end=(now.astimezone(BAGHDAD).date()+dt.timedelta(days=6)).isoformat())
 
 def main():
     path=Path(os.getenv("OUTPUT_JSON","docs/feed.json"))

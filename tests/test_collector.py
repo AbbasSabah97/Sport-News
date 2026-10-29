@@ -57,6 +57,32 @@ class CollectorTests(unittest.TestCase):
           {"homeAway":"away","team":{"displayName":"B"}}]}]}]}
         self.assertEqual(len(parse_espn(event,"england","2026-10-30")),1)
         self.assertEqual(len(parse_espn(event,"england","2026-10-29")),0)
+    def test_week_window_is_baghdad_local(self):
+        from backend.weekly_fixtures import week_window
+        start,end=week_window(dt.datetime(2026,10,29,23,30,tzinfo=UTC))
+        self.assertEqual(start.isoformat(),"2026-10-30")
+        self.assertEqual(end.isoformat(),"2026-11-05")
+    def test_iraq_verifiable_weekly_fixtures(self):
+        from backend.weekly_fixtures import official_iraq_snapshot
+        now=dt.datetime(2026,10,29,22,30,tzinfo=UTC)
+        matches=official_iraq_snapshot(now)
+        self.assertGreaterEqual(len(matches),7)
+        self.assertTrue(all(x["competition_id"]=="iraq" for x in matches))
+        self.assertTrue(all(x.get("source_url","").startswith("https://iraqstarsleague.com/") for x in matches))
+        self.assertTrue(all(x["kickoff"].endswith("+00:00") for x in matches))
+    def test_official_schedule_expires(self):
+        from backend.weekly_fixtures import official_iraq_snapshot
+        self.assertEqual(official_iraq_snapshot(dt.datetime(2026,11,1,12,tzinfo=UTC)),[])
+    def test_monthly_espn_jobs(self):
+        from backend.weekly_fixtures import monthly_tasks,LEAGUES
+        jobs=monthly_tasks(dt.date(2026,10,30),dt.date(2026,11,5))
+        self.assertEqual(len(jobs),len(LEAGUES)*2)
+        self.assertEqual({x[2] for x in jobs},{"202610","202611"})
+    def test_weekly_filter_includes_oct_31(self):
+        from backend.weekly_fixtures import within_week
+        items=[{"kickoff":"2026-10-31T13:30:00+00:00"},{"kickoff":"2026-11-08T13:30:00+00:00"}]
+        found=within_week(items,dt.date(2026,10,30),dt.date(2026,11,5))
+        self.assertEqual(len(found),1)
     def test_competitions(self):
         self.assertEqual(len(COMPETITIONS),7)
         self.assertEqual(league_code({"id":39,"name":"Premier League","country":"England"}),"england")
