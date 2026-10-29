@@ -36,11 +36,11 @@ import java.util.Locale;
 import java.util.Set;
 
 public class MainActivity extends Activity {
-    private static final int PAPER = Color.rgb(248,242,230);
-    private static final int CREAM = Color.rgb(238,227,209);
+    private static final int PAPER = Color.rgb(250,245,235);
+    private static final int CREAM = Color.rgb(243,231,213);
     private static final int WALNUT = Color.rgb(76,45,31);
     private static final int LIGHT_WALNUT = Color.rgb(119,82,59);
-    private static final int RULE = Color.rgb(202,179,149);
+    private static final int RULE = Color.rgb(203,181,151);
     private static final int ACCENT = Color.rgb(106,48,34);
     private static final ZoneId BAGHDAD = ZoneId.of("Asia/Baghdad");
     private static final String[] TABS = {"الرئيسية","الأخبار","المباريات","التقرير","المزيد"};
@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
     private int tab = 0;
     private String category = "الكل";
     private String competition = "all";
+    private String matchWindow = "week";
     private String search = "";
     private JSONObject openedArticle = null;
     private boolean favoritesPage = false;
@@ -154,7 +155,7 @@ public class MainActivity extends Activity {
     private void card(LinearLayout parent, View item) {
         LinearLayout wrap=column();
         wrap.setPadding(dp(13),dp(12),dp(13),dp(12));
-        wrap.setBackground(background(PAPER,3,RULE));
+        wrap.setBackground(background(CREAM,6,RULE));
         add(wrap,item);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
         lp.bottomMargin=dp(10);
@@ -165,7 +166,7 @@ public class MainActivity extends Activity {
         b.setTextColor(selected?PAPER:WALNUT);
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(13),dp(9),dp(13),dp(9));
-        b.setBackground(background(selected?WALNUT:CREAM,5,selected?0:RULE));
+        b.setBackground(background(selected?WALNUT:CREAM,7,selected?0:RULE));
         b.setOnClickListener(v->action.run());
         return b;
     }
@@ -202,8 +203,9 @@ public class MainActivity extends Activity {
             final int index=i;
             LinearLayout tabView=column();
             tabView.setGravity(Gravity.CENTER);
-            String ornament=tab==i&&!favoritesPage&&openedArticle==null?"◆":"◇";
-            TextView sym=text(ornament,12,false);
+            String[] ornaments={"⌂","▣","⚽","▤","☷"};
+            String ornament=ornaments[i];
+            TextView sym=text(ornament,17,tab==i);
             sym.setTextColor(tab==i?ACCENT:LIGHT_WALNUT);
             sym.setGravity(Gravity.CENTER);
             add(tabView,sym);
@@ -222,25 +224,40 @@ public class MainActivity extends Activity {
     }
     private void masthead(String section) {
         LinearLayout top=row();
-        TextView mark=muted("✦ صحيفة يومية ✦",12);
+        TextView mark=muted("✦  صحيفة يومية  ✦",12);
         space(top,mark,1);
-        TextView update=muted("بتوقيت بغداد",11);
+        TextView update=muted("بغداد  |  أخبار العالم",11);
         update.setGravity(Gravity.END);
         space(top,update,1);
         add(container,top);
         rule(container);
-        TextView logo=text("WorldPulse",34,true);
-        logo.setTypeface(Typeface.create("serif",Typeface.BOLD));
+
+        TextView logo=text("WorldPulse",39,true);
         logo.setGravity(Gravity.CENTER);
+        logo.setTextColor(WALNUT);
         add(container,logo);
-        TextView sub=text("نبض العالم  •  أخبار ورياضة",13,false);
+        TextView sub=muted("✦    نبض العالم  •  أخبار ورياضة    ✦",13);
         sub.setGravity(Gravity.CENTER);
         add(container,sub);
-        gap(container,4);
-        TextView edition=muted("العدد الرقمي  |  " + getDate() + "  |  " + section,12);
-        edition.setGravity(Gravity.CENTER);
+        gap(container,11);
+
+        LinearLayout edition=row();
+        TextView left=muted("صحيفة رقمية",11);
+        left.setGravity(Gravity.START);
+        TextView center=muted(getDate(),12);
+        center.setGravity(Gravity.CENTER);
+        TextView right=muted(section,11);
+        right.setGravity(Gravity.END);
+        space(edition,left,1);
+        space(edition,center,1);
+        space(edition,right,1);
         add(container,edition);
         rule(container);
+        View fineLine=new View(this);
+        fineLine.setBackgroundColor(RULE);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(1));
+        p.bottomMargin=dp(6);
+        container.addView(fineLine,p);
     }
     private String getDate() {
         return java.time.LocalDate.now(BAGHDAD)
@@ -248,7 +265,7 @@ public class MainActivity extends Activity {
     }
     private void heading(String title) {
         gap(container,8);
-        TextView h=text("—  " + title + "  —",20,true);
+        TextView h=text("✦  " + title + "  ✦",21,true);
         h.setGravity(Gravity.CENTER);
         add(container,h);
         rule(container);
@@ -306,7 +323,7 @@ public class MainActivity extends Activity {
         TextView source=muted(item.optString("source","")+
                 "    •    "+item.optString("category","")+"    •    "+stamp(item.optString("published_at","")),11);
         add(wrapper,source);
-        wrapper.setPadding(dp(2),dp(9),dp(2),dp(9));
+        wrapper.setPadding(dp(2),dp(11),dp(2),dp(11));
         wrapper.setOnClickListener(v->{openedArticle=item;render();});
         add(host,wrapper);
         rule(host);
@@ -345,10 +362,30 @@ public class MainActivity extends Activity {
         add(container,button("عرض قسم الذكاء الاصطناعي",false,()->{
             tab=1;category="الذكاء الاصطناعي";search="";render();
         }));
-        heading("مباريات اليوم");
+        heading("مباريات الأسبوع");
         JSONArray games=items("matches");
-        if(games.length()==0)note("لا توجد مباريات حالياً أو لم يُضبط مصدر النتائج.");
-        else for(int i=0;i<Math.min(3,games.length());i++)drawMatch(container,at(games,i));
+        if(games.length()==0)note("لا توجد مباريات مؤكدة خلال الأيام السبعة المقبلة في المصادر الحالية.");
+        else {
+            int displayed=0;
+            // Feature the verified Iraqi league first, then the rest of the week.
+            for(int i=0;i<games.length() && displayed<3;i++) {
+                JSONObject item=at(games,i);
+                if("iraq".equals(item.optString("competition_id"))){
+                    drawMatch(container,item);
+                    displayed++;
+                }
+            }
+            for(int i=0;i<games.length() && displayed<4;i++) {
+                JSONObject item=at(games,i);
+                if(!"iraq".equals(item.optString("competition_id"))){
+                    drawMatch(container,item);
+                    displayed++;
+                }
+            }
+            add(container,button("عرض جدول الأسبوع كاملاً",false,()->{
+                tab=2;matchWindow="week";competition="all";render();
+            }));
+        }
     }
     private void drawNews() {
         masthead("الأقسام");
@@ -455,59 +492,167 @@ public class MainActivity extends Activity {
             startActivity(intent);
         } catch(Exception e) {Toast.makeText(this,"لا يوجد متصفح متاح",Toast.LENGTH_SHORT).show();}
     }
+    private java.time.LocalDate matchDay(String stamp) {
+        try {
+            return OffsetDateTime.parse(stamp).atZoneSameInstant(BAGHDAD).toLocalDate();
+        } catch(Exception ex){return null;}
+    }
+    private String matchDayTitle(java.time.LocalDate day) {
+        if(day==null)return "موعد غير محدد";
+        return day.format(DateTimeFormatter.ofPattern("EEEE، d MMMM yyyy", new Locale("ar","IQ")));
+    }
+    private String matchClock(String stamp) {
+        try {
+            return OffsetDateTime.parse(stamp).atZoneSameInstant(BAGHDAD)
+                    .format(DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH));
+        } catch(Exception ex){return "—";}
+    }
+    private boolean matchInSelectedWindow(JSONObject match) {
+        java.time.LocalDate day=matchDay(match.optString("kickoff",""));
+        if(day==null)return false;
+        java.time.LocalDate today=java.time.LocalDate.now(BAGHDAD);
+        switch(matchWindow) {
+            case "today":return day.equals(today);
+            case "tomorrow":return day.equals(today.plusDays(1));
+            default:return !day.isBefore(today)&&!day.isAfter(today.plusDays(6));
+        }
+    }
+    private void periodChip(LinearLayout parent,String id,String label) {
+        TextView b=button(label,id.equals(matchWindow),()->{matchWindow=id;render();});
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(0,-2,1);
+        params.setMargins(dp(3),0,dp(3),0);
+        parent.addView(b,params);
+    }
     private void drawMatches() {
         masthead("الرياضة");
         banner();
-        heading("مباريات اليوم");
-        add(container,muted("التوقيت المحلي: بغداد   |   "+feed.optString("local_date",getDate()),13));
-        gap(container,10);
+        heading("مباريات الأسبوع");
+        java.time.LocalDate today=java.time.LocalDate.now(BAGHDAD);
+        String period=today.format(DateTimeFormatter.ofPattern("d MMM",new Locale("ar","IQ")))+
+                " — "+today.plusDays(6).format(DateTimeFormatter.ofPattern("d MMM yyyy",new Locale("ar","IQ")));
+        TextView periodText=muted("من "+period+"  •  بتوقيت بغداد",13);
+        periodText.setGravity(Gravity.CENTER);
+        add(container,periodText);
+        gap(container,13);
+        LinearLayout periods=row();
+        periodChip(periods,"week","الأسبوع");
+        periodChip(periods,"today","اليوم");
+        periodChip(periods,"tomorrow","غداً");
+        add(container,periods);
+        gap(container,16);
+
         HorizontalScrollView scroll=new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
         LinearLayout filter=row();
         scroll.addView(filter);
         add(container,scroll);
-        JSONArray leagues=items("competitions");
         addChip(filter,"all","كل البطولات");
-        for(int i=0;i<leagues.length();i++) {
+        JSONArray leagues=items("competitions");
+        for(int i=0;i<leagues.length();i++){
             JSONObject lg=at(leagues,i);
             addChip(filter,lg.optString("id"),lg.optString("name"));
         }
-        gap(container,15);
-        JSONArray matches=items("matches");
-        if("not_configured".equals(feed.optString("sports_status")))note("لم تُفعّل خدمة المباريات بعد؛ يُمكن تفعيل المصدر الأساسي من GitHub.");
-        if("partial".equals(feed.optString("sports_status")))note(feed.optString("sports_error","تغطية جزئية للمباريات اليوم."));
-        if("error".equals(feed.optString("sports_status")))note("تعذر الوصول إلى مصادر بيانات المباريات.");
-        int visible=0;
-        for(int i=0;i<matches.length();i++) {
-            JSONObject m=at(matches,i);
-            if(!competition.equals("all")&&!competition.equals(m.optString("competition_id")))continue;
-            drawMatch(container,m);visible++;
+        gap(container,12);
+        String status=feed.optString("sports_status","");
+        if("partial".equals(status)) note(feed.optString("sports_error","تغطية المباريات غير مكتملة لبعض الدوريات."));
+        if("error".equals(status) || "not_configured".equals(status))
+            note("تعذر تحديث نتائج بعض البطولات؛ لا تعني القائمة الخالية عدم وجود مباريات.");
+        if("iraq".equals(competition)||"all".equals(competition)){
+            note("مواعيد الدوري العراقي من المصادر المتاحة؛ راجع موقع الدوري الرسمي عند تغيّر جدول المباريات.");
         }
-        if(visible==0)note("لا توجد مباريات معلنة لهذا اليوم في المصدر المتاح؛ قد يكون الدوري متوقفاً أو تغطيته غير مكتملة.");
-        add(container,muted("قد تتأخر تحديثات النتائج؛ لا يُعدّ هذا بثاً لحظياً.",12));
+
+        JSONArray matches=items("matches");
+        int shown=0;
+        String lastDate="";
+        for(int i=0;i<matches.length();i++) {
+            JSONObject match=at(matches,i);
+            if(!"all".equals(competition) && !competition.equals(match.optString("competition_id")))continue;
+            if(!matchInSelectedWindow(match))continue;
+            java.time.LocalDate matchDate=matchDay(match.optString("kickoff",""));
+            String dateId=matchDate.toString();
+            if(!dateId.equals(lastDate)){
+                TextView group=text("✦  "+matchDayTitle(matchDate),17,true);
+                group.setPadding(dp(2),dp(11),dp(2),dp(7));
+                add(container,group);
+                rule(container);
+                lastDate=dateId;
+            }
+            drawMatch(container,match);
+            shown++;
+        }
+        if(shown==0)note("لا توجد مباريات مؤكدة ضمن الفترة والبطولة المختارتين في المصادر المتاحة.");
+        add(container,muted("المواعيد قابلة للتغيير، وتُحدّث من المصادر كل ساعة تقريباً. لا تُنشأ مباريات تقديرية.",12));
     }
     private void addChip(LinearLayout holder,String id,String name) {
         TextView b=button(name,id.equals(competition),()->{competition=id;render();});
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-2);
-        p.leftMargin=dp(4);p.rightMargin=dp(4);
+        p.setMargins(dp(4),0,dp(4),0);
         holder.addView(b,p);
+    }
+    private String arabicTeam(String name) {
+        String lower=name.toLowerCase(Locale.ROOT).trim();
+        switch(lower){
+            case "al karma":case "al-karma":case "al karma sc":return "الكرمة";
+            case "duhok":return "دهوك";
+            case "karbala":case "karbalaa":return "كربلاء";
+            case "al talaba":case "talaba":return "الطلبة";
+            case "al karkh":case "al-karkh":return "الكرخ";
+            case "al gharraf":case "al gharraf sc":return "الغراف";
+            case "arbil":case "erbil":return "أربيل";
+            case "ghaz al shamal":return "غاز الشمال";
+            case "al naft maysan":case "naft maysan":case "naft missan":return "نفط ميسان";
+            case "zakho":return "زاخو";
+            case "al zawraa":case "al-zawraa":return "الزوراء";
+            case "diyala":return "ديالى";
+            case "al shorta":case "al-shorta":case "shorta":return "الشرطة";
+            case "newroz":case "newroz sc":return "نوروز";
+            case "villarreal":return "فياريال";
+            case "espanyol":return "إسبانيول";
+            case "liverpool":return "ليفربول";
+            case "arsenal":return "أرسنال";
+            case "chelsea":return "تشيلسي";
+            case "barcelona":return "برشلونة";
+            case "real madrid":return "ريال مدريد";
+            default:return name;
+        }
     }
     private void drawMatch(LinearLayout parent,JSONObject match) {
         LinearLayout section=column();
-        TextView league=muted("⚽  "+match.optString("league","بطولة"),12);
-        add(section,league);
+        LinearLayout header=row();
+        TextView lg=muted("✦ "+match.optString("league","بطولة"),12);
+        space(header,lg,1);
+        String source=match.optString("provider","");
+        TextView sourceTag=muted(source.contains("دوري نجوم")?"جدول مؤكد":"",10);
+        sourceTag.setGravity(Gravity.END);
+        space(header,sourceTag,1);
+        add(section,header);
         rule(section);
-        TextView teams=text(match.optString("home","")+"    ×    "+match.optString("away",""),17,true);
-        teams.setGravity(Gravity.CENTER);
-        teams.setMaxLines(3);
-        add(section,teams);
-        gap(section,7);
-        boolean hasScore=!match.isNull("home_goals")&&!match.isNull("away_goals");
+        LinearLayout teams=row();
+        String first=arabicTeam(match.optString("home",""));
+        String second=arabicTeam(match.optString("away",""));
+        TextView home=text(first,15,true);
+        home.setGravity(Gravity.CENTER);
+        TextView away=text(second,15,true);
+        away.setGravity(Gravity.CENTER);
         String status=match.optString("status","NS");
-        String score=hasScore ? match.optInt("home_goals")+" : "+match.optInt("away_goals") : "VS";
-        TextView time=muted(score+"   |   "+stamp(match.optString("kickoff",""))+"   |   "+status,13);
-        time.setGravity(Gravity.CENTER);
-        add(section,time);
+        boolean scored=!match.isNull("home_goals")&&!match.isNull("away_goals");
+        String middle=scored
+                ?match.optInt("home_goals")+" - "+match.optInt("away_goals")
+                :matchClock(match.optString("kickoff",""));
+        TextView middleView=text(middle,15,true);
+        middleView.setGravity(Gravity.CENTER);
+        middleView.setTextColor(ACCENT);
+        space(teams,home,1.1f);
+        space(teams,middleView,0.9f);
+        space(teams,away,1.1f);
+        add(section,teams);
+        gap(section,8);
+        String label="NS".equals(status)?"لم تبدأ":
+                "FT".equals(status)?"انتهت":"LIVE".equals(status)?"مباشر":
+                "PST".equals(status)?"مؤجلة":status;
+        TextView caption=muted(label+"   •   توقيت بغداد",11);
+        caption.setGravity(Gravity.CENTER);
+        add(section,caption);
         card(parent,section);
     }
     private void drawReport() {
