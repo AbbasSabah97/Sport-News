@@ -30,7 +30,11 @@ struct ContentView: View {
 }
 struct Page<Content:View>:View {
     let title:String
-    @ViewBuilder var content:Content
+    let content:Content
+    init(title:String,@ViewBuilder content:()->Content) {
+        self.title=title
+        self.content=content()
+    }
     var body: some View {
         ScrollView {
             VStack(alignment:.leading,spacing:18) {
@@ -417,7 +421,8 @@ struct ReportsScreen:View {
                 .frame(maxWidth:.infinity)
             }
             SectionTitle(title:"عناوين التقرير",symbol:"list.number")
-            ForEach(Array((store.feed?.digest ?? []).enumerated()),id:\.element.id) { i,story in
+            ForEach(Array((store.feed?.digest ?? []).indices),id:\.self) { i in
+                if let story=store.feed?.digest[i] {
                 HStack(alignment:.top,spacing:12) {
                     Text("\(i+1)")
                         .font(.headline.bold()).foregroundStyle(.white)
@@ -435,6 +440,7 @@ struct ReportsScreen:View {
                     Spacer()
                 }
                 .padding(13).background(Theme.surface,in:RoundedRectangle(cornerRadius:15))
+                }
             }
             Text(store.feed?.digestNote ?? "تعذر تحميل التقرير")
                 .font(.caption).foregroundStyle(Theme.muted)
