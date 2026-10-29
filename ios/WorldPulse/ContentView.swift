@@ -91,80 +91,45 @@ struct FeedMessage:View {
         }
     }
 }
-struct GlobeHero:View {
+struct TextHero:View {
     var body:some View {
-        ZStack {
-            RoundedRectangle(cornerRadius:24)
-                .fill(LinearGradient(colors:[Color(red:0.02,green:0.13,blue:0.25),Theme.blue.opacity(0.32),Theme.bg],startPoint:.topLeading,endPoint:.bottomTrailing))
-            Circle().stroke(Theme.cyan.opacity(0.23),lineWidth:2).frame(width:245,height:245).offset(x:-120,y:40)
-            Circle().stroke(Theme.cyan.opacity(0.25),lineWidth:1).frame(width:165,height:165).offset(x:120,y:-35)
-            VStack(spacing:8) {
-                Image(systemName:"globe.europe.africa.fill")
-                    .font(.system(size:62)).foregroundStyle(Theme.cyan)
-                    .shadow(color:Theme.cyan.opacity(0.4),radius:14)
-                Text("نبض العالم").font(.system(size:32,weight:.heavy))
-                Text("WORLD PULSE").font(.caption.bold()).tracking(3).foregroundStyle(Theme.cyan)
-                Text("الأحداث العالمية والرياضة في مكان واحد")
-                    .font(.footnote).foregroundStyle(Theme.muted)
-            }
+        VStack(alignment:.leading,spacing:8) {
+            Text("نبض العالم").font(.system(size:30,weight:.heavy))
+            Text("WorldPulse • الأخبار والمباريات").font(.subheadline).foregroundStyle(Theme.cyan)
+            Text("أخبار نصية فقط، من دون تنزيل أو تخزين الصور.")
+                .font(.footnote).foregroundStyle(Theme.muted)
         }
-        .frame(height:215)
-        .clipShape(RoundedRectangle(cornerRadius:24))
-    }
-}
-struct ArticlePicture:View {
-    let url:String?
-    let height:CGFloat
-    var body:some View {
-        ZStack {
-            Theme.raised
-            if let text=url,let address=URL(string:text),address.scheme=="https" {
-                AsyncImage(url:address) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    case .failure:
-                        Image(systemName:"newspaper.fill").font(.title).foregroundStyle(Theme.muted)
-                    default:
-                        ProgressView().tint(Theme.cyan)
-                    }
-                }
-            } else {
-                Image(systemName:"globe").font(.system(size:36)).foregroundStyle(Theme.cyan)
-            }
-        }
-        .frame(height:height)
-        .clipped()
+        .frame(maxWidth:.infinity,alignment:.leading)
+        .padding(19)
+        .background(Theme.surface,in:RoundedRectangle(cornerRadius:19))
     }
 }
 struct ArticleRow:View {
     let article:Article
     @ObservedObject var store:FeedStore
     var body:some View {
-        HStack(alignment:.center,spacing:12) {
+        HStack(alignment:.top,spacing:12) {
             NavigationLink {
                 ArticleDetail(article:article,store:store)
             } label: {
-                HStack(alignment:.top,spacing:12) {
-                    ArticlePicture(url:article.imageUrl,height:92)
-                        .frame(width:105).clipShape(RoundedRectangle(cornerRadius:12))
-                    VStack(alignment:.leading,spacing:8) {
-                        Text(article.title).font(.subheadline.bold()).lineLimit(3).multilineTextAlignment(.leading)
-                        Text("\(article.source) • \(article.category)")
-                            .font(.caption2).foregroundStyle(Theme.cyan).lineLimit(1)
-                        Text(DateUtil.format(article.publishedAt,clock:false))
-                            .font(.caption2).foregroundStyle(Theme.muted)
+                VStack(alignment:.leading,spacing:8) {
+                    Text(article.title).font(.subheadline.bold())
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal:false,vertical:true)
+                    if !article.summary.isEmpty {
+                        Text(article.summary).font(.footnote).foregroundStyle(Theme.muted)
+                            .lineLimit(2)
                     }
-                    Spacer(minLength:0)
-                }
-            }
-            .buttonStyle(.plain)
+                    Text("\(article.source) • \(article.category) • \(DateUtil.format(article.publishedAt,clock:false))")
+                        .font(.caption2).foregroundStyle(Theme.cyan).lineLimit(2)
+                }.frame(maxWidth:.infinity,alignment:.leading)
+            }.buttonStyle(.plain)
             Button {store.toggleFavorite(article.id)} label: {
                 Image(systemName:store.favorites.contains(article.id) ? "bookmark.fill":"bookmark")
                     .font(.body).foregroundStyle(Theme.cyan)
             }.accessibilityLabel("حفظ الخبر")
         }
-        .padding(12)
+        .padding(14)
         .background(Theme.surface,in:RoundedRectangle(cornerRadius:17))
     }
 }
@@ -173,8 +138,6 @@ struct ArticleDetail:View {
     @ObservedObject var store:FeedStore
     var body:some View {
         Page(title:"تفاصيل الخبر") {
-            ArticlePicture(url:article.imageUrl,height:210)
-                .clipShape(RoundedRectangle(cornerRadius:20))
             Text(article.title).font(.title2.bold()).fixedSize(horizontal:false,vertical:true)
             HStack {
                 Label(article.source,systemImage:"newspaper")
@@ -216,7 +179,7 @@ struct HomeScreen:View {
     @Binding var selectedTab:Int
     var body:some View {
         Page(title:"") {
-            GlobeHero()
+            TextHero()
             FeedMessage(store:store)
             HStack {
                 SectionTitle(title:"أبرز الأخبار",symbol:"bolt.fill")
@@ -228,15 +191,18 @@ struct HomeScreen:View {
                 NavigationLink {
                     ArticleDetail(article:lead,store:store)
                 } label: {
-                    VStack(alignment:.leading,spacing:0) {
-                        ArticlePicture(url:lead.imageUrl,height:190)
-                        VStack(alignment:.leading,spacing:8) {
-                            Text(lead.title).font(.title3.bold()).multilineTextAlignment(.leading)
-                            Text("\(lead.source) • \(lead.category)").font(.caption).foregroundStyle(Theme.cyan)
-                        }.padding(15)
+                    VStack(alignment:.leading,spacing:9) {
+                        Text("أبرز خبر").font(.caption.bold()).foregroundStyle(Theme.cyan)
+                        Text(lead.title).font(.title3.bold())
+                            .multilineTextAlignment(.leading).fixedSize(horizontal:false,vertical:true)
+                        if !lead.summary.isEmpty {
+                            Text(lead.summary).font(.footnote).foregroundStyle(Theme.muted).lineLimit(3)
+                        }
+                        Text("\(lead.source) • \(lead.category)").font(.caption).foregroundStyle(Theme.cyan)
                     }
+                    .frame(maxWidth:.infinity,alignment:.leading)
+                    .padding(16)
                     .background(Theme.surface,in:RoundedRectangle(cornerRadius:20))
-                    .clipShape(RoundedRectangle(cornerRadius:20))
                 }.buttonStyle(.plain)
             }
             ForEach(Array((store.feed?.news ?? []).dropFirst().prefix(6))) { article in
@@ -486,8 +452,9 @@ struct MoreScreen:View {
             }.padding(18).background(Theme.surface,in:RoundedRectangle(cornerRadius:18))
             VStack(alignment:.leading,spacing:10) {
                 SectionTitle(title:"حول التطبيق",symbol:"info.circle")
-                Text("WorldPulse • إصدار 0.3")
+                Text("WorldPulse • إصدار 0.4")
                 Text("موجز أخبار تلقائي من مصادر RSS، وجدول مباريات اليوم من API-Football. تعرض الخدمة بيانات من ناشريها الأصليين وروابطهم.")
+                Text("توفير مساحة التخزين: الأخبار لا تُحفظ على الهاتف، ولا يتم تنزيل صور، بل تحتفظ الذاكرة المؤقتة RAM بالنصوص أثناء الاستخدام. تُحفظ معرّفات المفضلة والإعدادات الصغيرة فقط.")
                 Text("الإشعارات الفورية غير مفعلة في هذا الإصدار؛ يتطلب إرسالها من الخادم إعداد Apple Push Notifications.")
                 Text("مواعيد تحديث GitHub Actions تقريبية، وقد تتأخر عند ضغط الخدمة.")
                 Link("المشروع على GitHub",destination:URL(string:"https://github.com/AbbasSabah97/Sport-News")!)

@@ -30,7 +30,6 @@ struct Article: Decodable, Identifiable {
     let id: String
     let title: String
     let summary: String
-    let imageUrl: String?
     let url: String
     let source: String
     let language: String
@@ -102,7 +101,7 @@ final class FeedStore: ObservableObject {
     @Published var error: String?
     @Published var favorites: Set<String> = []
     private var lastLoad: Date?
-    private static var cacheURL: URL {
+    private static var legacyCacheURL: URL {
         FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("sport-news-feed.json")
     }
     static let decoder: JSONDecoder = {
@@ -111,19 +110,21 @@ final class FeedStore: ObservableObject {
         return d
     }()
     init() {
-        favorites = Set(UserDefaults.standard.stringArray(forKey:"favorites") ?? [])
-        if let bytes=try? Data(contentsOf:Self.cacheURL),let snap=try? Self.decoder.decode(FeedSnapshot.self,from:bytes) {
-            feed=snap
-        } else if let url=Bundle.main.url(forResource:"preview-feed",withExtension:"json"),
-                  let bytes=try? Data(contentsOf:url),
-                  let snap=try? Self.decoder.decode(FeedSnapshot.self,from:bytes) {
+        URLCache.shared.removeAllCachedResponses()
+        URLCache.shared.diskCapacity=0
+        URLCache.shared.memoryCapacity=0
+        try? FileManager.default.removeItem(at:Self.legacyCacheURL)
+        favorites=Set((UserDefaults.standard.stringArray(forKey:"favorites") ?? []).prefix(200))
+        if let url=Bundle.main.url(forResource:"preview-feed",withExtension:"json"),
+           let bytes=try? Data(contentsOf:url),
+           let snap=try? Self.decoder.decode(FeedSnapshot.self,from:bytes) {
             feed=snap
         }
     }
     func toggleFavorite(_ id:String) {
         if favorites.contains(id) {favorites.remove(id)}
-        else {favorites.insert(id)}
-        UserDefaults.standard.set(Array(favorites),forKey:"favorites")
+        else if favorites.count < 200 {favorites.insert(id)}
+        UserDefaults.standard.set(Array(favorites).sorted(),forKey:"favorites")
     }
     var stale: Bool {
         guard let feed else {return true}
@@ -144,10 +145,18 @@ final class FeedStore: ObservableObject {
         lastLoad=Date()
         defer {loading=false}
         do {
+            let configuration=URLSessionConfiguration.ephemeral
+            configuration.urlCache=nil
+            configuration.httpCookieStorage=nil
+            configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let session=URLSession(configuration:configuration)
+            defer {session.invalidateAndCancel()}
             var req=URLRequest(url:u)
-            req.cachePolicy = .reloadIgnoringLocalCacheData
+            req.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             req.timeoutInterval=20
-            let (data,response)=try await URLSession.shared.data(for:req)
+            req.setValue("no-store",forHTTPHeaderField:"Cache-Control")
+            let (data,response)=try await session.data(for:req)
+            guard data.count <= 350_000 else {throw URLError(.dataLengthExceedsMaximum)}
             guard (response as? HTTPURLResponse)?.statusCode==200 else {
                 throw URLError(.badServerResponse)
             }
@@ -155,7 +164,6 @@ final class FeedStore: ObservableObject {
             guard snap.schemaVersion == 1 else {throw URLError(.cannotParseResponse)}
             feed=snap
             error=nil
-            try? data.write(to:Self.cacheURL,options:.atomic)
         } catch {
             self.error="تعذر تحديث البيانات: "+error.localizedDescription
         }

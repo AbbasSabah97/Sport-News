@@ -14,7 +14,7 @@ settings:
     INFOPLIST_KEY_UILaunchScreen_Generation: YES
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     CURRENT_PROJECT_VERSION: '1'
-    MARKETING_VERSION: '0.3.0'
+    MARKETING_VERSION: '0.4.0'
 targets:
   WorldPulse:
     type: application

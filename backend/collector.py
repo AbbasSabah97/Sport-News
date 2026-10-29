@@ -79,16 +79,6 @@ def field(element,*tags):
             return child.text.strip()
     return ""
 
-def image(element):
-    for child in element:
-        tag=child.tag.split("}")[-1].lower()
-        if tag not in ("thumbnail","enclosure","content"): continue
-        if tag=="enclosure" and not child.get("type","").startswith("image/"): continue
-        url=child.get("url","")
-        p=urllib.parse.urlsplit(url)
-        if p.scheme=="https" and p.hostname and not p.username: return url
-    return None
-
 def parse_feed(xml, source, now):
     root=ET.fromstring(xml)
     results=[]
@@ -104,9 +94,9 @@ def parse_feed(xml, source, now):
         url=canonical(url)
         published=date(field(item,"pubdate","published","updated","date"),now)
         if not title or not url or not (-900<=(now-published).total_seconds()<=172800): continue
-        results.append(dict(id=hashlib.sha256(url.encode()).hexdigest()[:18],title=title[:240],
-            summary=clean(field(item,"description","summary","content"))[:220],
-            url=url,source=source[0],language=source[2],published_at=published.isoformat(),image_url=image(item)))
+        results.append(dict(id=hashlib.sha256(url.encode()).hexdigest()[:18],title=title[:180],
+            summary=clean(field(item,"description","summary","content"))[:150],
+            url=url,source=source[0],language=source[2],published_at=published.isoformat()))
     return results
 
 def same(a,b):
@@ -137,12 +127,12 @@ def cluster(items,now):
     for g in groups:
         a=dict(g["lead"])
         a["source_count"]=len(g["sources"])
-        a["related_sources"]=sorted(g["sources"])
+        a["related_sources"]=sorted(g["sources"])[:5]
         a["category"]=classify(a["title"])
         age=max(0,(now-dt.datetime.fromisoformat(a["published_at"])).total_seconds()/3600)
         a["rank"]=round(2.5*min(len(g["sources"]),4)+max(0,3-age/6),2)
         results.append(a)
-    return sorted(results,key=lambda a:(a["rank"],a["published_at"]),reverse=True)[:120]
+    return sorted(results,key=lambda a:(a["rank"],a["published_at"]),reverse=True)[:80]
 
 def news(now):
     raw=[];warnings=[]
@@ -208,10 +198,12 @@ def main():
         try:old=json.loads(path.read_text(encoding="utf-8"))
         except (ValueError,OSError):old={}
         if not result["news"] and old.get("news"):
-            result["news"]=old["news"];result["digest"]=old.get("digest",[]);result["news_status"]="stale"
+            result["news"]=[{k:v for k,v in item.items() if k!="image_url"} for item in old["news"][:80]]
+            result["digest"]=old.get("digest",[])[:10]
+            result["news_status"]="stale"
         if result["sports_status"]=="error" and old.get("local_date")==result["local_date"] and old.get("matches"):
             result["matches"]=old["matches"];result["sports_status"]="stale"
-    path.write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    path.write_text(json.dumps(result,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
     print(f"Updated {path}: {len(result['news'])} news / {len(result['matches'])} fixtures")
     return 0
 
