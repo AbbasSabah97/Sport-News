@@ -75,7 +75,17 @@ public class MainActivity extends Activity {
         preferences = getSharedPreferences("worldpulse_prefs", MODE_PRIVATE);
         favorites.addAll(preferences.getStringSet("saved_ids", new HashSet<>()));
         try {
-            byte[] raw = getAssets().open("preview-feed.json").readAllBytes();
+            byte[] raw;
+            try (java.io.InputStream in = getAssets().open("preview-feed.json");
+                 java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+                byte[] chunk = new byte[2048];
+                int length;
+                while ((length = in.read(chunk)) != -1) {
+                    if (out.size() + length > 30_000) break;
+                    out.write(chunk, 0, length);
+                }
+                raw = out.toByteArray();
+            }
             feed = new JSONObject(new String(raw, java.nio.charset.StandardCharsets.UTF_8));
         } catch (Exception ignored) { }
         render();
