@@ -112,7 +112,8 @@ def classify(title):
     n=norm(title)
     def words(*phrases):
         return any(re.search(r"(?<!\w)"+re.escape(norm(phrase))+r"(?!\w)",n) for phrase in phrases)
-    if words("الذكاء الاصطناعي","الذكاء التوليدي","chatgpt","openai","gemini ai","artificial intelligence","machine learning","نماذج اللغة","تعلم الالة","تعلم الآلة","روبوتات المحادثة"):
+    if (words("الذكاء الاصطناعي","الذكاء التوليدي","chatgpt","openai","gemini ai","artificial intelligence","machine learning","نماذج اللغة","تعلم الالة","تعلم الآلة","روبوتات المحادثة")
+            or "للذكاء الاصطناعي" in n or "ذكاء اصطناعي" in n):
         return "الذكاء الاصطناعي"
     if words("رياضة","دوري","مباراة","مباريات","كرة القدم","football","soccer","league","champions league","كأس","كاس"):
         return "رياضة"
