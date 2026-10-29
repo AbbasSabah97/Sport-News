@@ -37,6 +37,21 @@ jobs:
           xcodebuild -project WorldPulse.xcodeproj -scheme WorldPulse -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO build
+      - name: Verify app metadata is English
+        working-directory: ios
+        run: |
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          info = Path("build/Build/Products/Release-iphoneos/WorldPulse.app/Info.plist")
+          with info.open("rb") as f:
+              p = plistlib.load(f)
+          for key in ("CFBundleDisplayName", "CFBundleName"):
+              value = p.get(key)
+              print(f"{key}={value}")
+              assert value == "WorldPulse", f"{key} must be WorldPulse; got {value!r}"
+          assert p["CFBundleIdentifier"] == "com.worldpulse.daily"
+          PY
       - name: Package IPA
         working-directory: ios
         run: |
