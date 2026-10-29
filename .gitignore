@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+ios/build/
+ios/WorldPulse.xcodeproj/
+ios/WorldPulse-unsigned.ipa

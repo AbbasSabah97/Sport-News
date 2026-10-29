@@ -1,0 +1,51 @@
+name: Build unsigned IPA
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/build-ios.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate app icon and feed endpoint
+        env:
+          FEED_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 backend/icon.py
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          repo=os.environ['FEED_REPOSITORY']
+          url='https://raw.githubusercontent.com/'+repo+'/main/docs/feed.json'
+          Path('ios/WorldPulse/FeedEndpoint.swift').write_text('enum FeedEndpoint { static let generatedURL = '+json.dumps(url)+' }\n')
+          PY
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+      - name: Build iPhone app
+        working-directory: ios
+        run: |
+          xcodebuild -project WorldPulse.xcodeproj -scheme WorldPulse -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Package IPA
+        working-directory: ios
+        run: |
+          mkdir -p package/Payload
+          cp -R build/Build/Products/Release-iphoneos/WorldPulse.app package/Payload/
+          (cd package && zip -qry ../WorldPulse-unsigned.ipa Payload)
+          test -s WorldPulse-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WorldPulse-unsigned-IPA
+          path: ios/WorldPulse-unsigned.ipa
+          if-no-files-found: error

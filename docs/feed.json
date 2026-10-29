@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-29T09:00:00+00:00",
+  "timezone": "Asia/Baghdad",
+  "local_date": "2026-10-29",
+  "news_status": "unavailable",
+  "digest_note": "لم يجرِ تحديث البيانات بعد.",
+  "news": [],
+  "digest": [],
+  "source_warnings": [],
+  "sports_status": "not_configured",
+  "sports_error": "أضف API_FOOTBALL_KEY في GitHub Secrets",
+  "competitions": [
+    {
+      "id": "iraq",
+      "name": "الدوري العراقي"
+    },
+    {
+      "id": "spain",
+      "name": "الدوري الإسباني"
+    },
+    {
+      "id": "england",
+      "name": "الدوري الإنجليزي"
+    },
+    {
+      "id": "ucl",
+      "name": "دوري أبطال أوروبا"
+    },
+    {
+      "id": "worldcup",
+      "name": "كأس العالم"
+    },
+    {
+      "id": "asiacup",
+      "name": "كأس أمم آسيا"
+    },
+    {
+      "id": "euro",
+      "name": "كأس أمم أوروبا"
+    }
+  ],
+  "matches": []
+}

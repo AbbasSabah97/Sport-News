@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-29T09:00:00+00:00",
+  "timezone": "Asia/Baghdad",
+  "local_date": "2026-10-29",
+  "news_status": "demo",
+  "digest_note": "هذه أمثلة للاختبار ولا تمثل أخباراً حقيقية.",
+  "news": [
+    {
+      "id": "sample-1",
+      "title": "مثال توضيحي: مؤتمر دولي حول مستقبل الطاقة",
+      "summary": "محتوى تجريبي لفحص واجهة الأخبار فقط.",
+      "image_url": null,
+      "url": "https://www.un.org/en/",
+      "source": "عرض تجريبي",
+      "language": "ar",
+      "published_at": "2026-10-29T08:30:00+00:00",
+      "source_count": 1,
+      "related_sources": [
+        "عرض تجريبي"
+      ],
+      "category": "اقتصاد",
+      "rank": 5
+    },
+    {
+      "id": "sample-2",
+      "title": "مثال توضيحي: تطورات تقنيات الذكاء الاصطناعي",
+      "summary": "عنوان غير حقيقي لفحص البحث والتصنيفات.",
+      "image_url": null,
+      "url": "https://www.un.org/en/",
+      "source": "عرض تجريبي",
+      "language": "ar",
+      "published_at": "2026-10-29T08:00:00+00:00",
+      "source_count": 1,
+      "related_sources": [
+        "عرض تجريبي"
+      ],
+      "category": "تقنية",
+      "rank": 4
+    }
+  ],
+  "digest": [
+    {
+      "id": "sample-1",
+      "headline": "مثال توضيحي: مؤتمر دولي حول مستقبل الطاقة",
+      "source": "عرض تجريبي",
+      "source_count": 1,
+      "url": "https://www.un.org/en/",
+      "category": "اقتصاد"
+    }
+  ],
+  "source_warnings": [],
+  "sports_status": "demo",
+  "sports_error": null,
+  "competitions": [
+    {
+      "id": "iraq",
+      "name": "الدوري العراقي"
+    },
+    {
+      "id": "spain",
+      "name": "الدوري الإسباني"
+    },
+    {
+      "id": "england",
+      "name": "الدوري الإنجليزي"
+    },
+    {
+      "id": "ucl",
+      "name": "دوري أبطال أوروبا"
+    },
+    {
+      "id": "worldcup",
+      "name": "كأس العالم"
+    },
+    {
+      "id": "asiacup",
+      "name": "كأس أمم آسيا"
+    },
+    {
+      "id": "euro",
+      "name": "كأس أمم أوروبا"
+    }
+  ],
+  "matches": [
+    {
+      "id": "demo-match",
+      "competition_id": "iraq",
+      "league": "الدوري العراقي",
+      "home": "الفريق الأول (تجريبي)",
+      "away": "الفريق الثاني (تجريبي)",
+      "home_goals": null,
+      "away_goals": null,
+      "kickoff": "2026-10-29T18:00:00+03:00",
+      "status": "NS"
+    }
+  ]
+}
