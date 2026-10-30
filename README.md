@@ -1,57 +1,13 @@
-# WorldPulse — صحيفة رقمية للأندرويد
+# WorldPulse Football - Android
 
-تطبيق أخبار ومباريات باللغة العربية، بطابع صحيفة كلاسيكية: **ورق Off-white**، خطوط **جوزية**، وفواصل تحريرية بنمط المطبوعات القديمة. الشيفرة مكتوبة بـ **Java و Android SDK** دون أي مكتبة واجهات خارجية.
+Android app with an original modern football-focused interface, inspired by the usability of live score apps, not copied proprietary FotMob branding or graphic assets.
 
-## تجربة Android
-- الهوية البصرية: Off-white `#F8F2E6`، جوزي `#4C2D1F`، وتدرجات ورقية دافئة.
-- خمس شاشات: الرئيسية، الأخبار مع البحث والتصفية وقسم مستقل للذكاء الاصطناعي، المباريات، التقرير الساعي مع قراءة صوتية، والمزيد/المفضلة.
-- **بدون صور داخل التطبيق أو روابط صور أو قاعدة بيانات للأخبار**.
-- آخر موجز يُحمّل عند فتح التطبيق ويبقى في RAM فقط، ولا يُخزّن في ملف على الهاتف. يحفظ معرّفات 120 خبراً مفضلاً كحد أقصى في SharedPreferences.
-- أخبار عالمية من RSS مع تصفية العناوين المتشابهة على GitHub، وعشر عناوين للتقرير الساعي.
-- بطولات: الدوري العراقي والإنجليزي والإسباني ودوري الأبطال وكأس العالم وكأس أمم آسيا وكأس أمم أوروبا.
-- التطبيق لا يقوم بمهام تجميع أو جدولة أخبار في الخلفية؛ كل ذلك يتم على GitHub.
-- فتح مصدر الخبر ينقلك إلى المتصفح الخارجي، الذي قد يعرض صوراً أو يخزّن بياناته مستقلاً عن التطبيق.
+Colors: orange #FF7730, indigo #1B2B5B, light background #F8F9FD. Arabic RTL layout and stable light theme even in Android Dark Mode.
 
-## بناء APK
-توجّه إلى [GitHub Actions](https://github.com/AbbasSabah97/Sport-News/actions/workflows/build-android.yml) ثم **Build Android APK → Run workflow**؛ ستجد `WorldPulse-Android-Debug-APK` في Artifacts. APK تجريبي موقّع بمفتاح Debug الخاص بالبناء، صالح للاختبار على جهازك، وليس إصداراً للنشر على Google Play.
+Screens: Home, seven-day Matches, seven Competitions, Match Details, real Standings when available, Team Following, and Settings. Includes Iraqi Stars League, LaLiga, Premier League, UEFA Champions League, FIFA World Cup, UEFA EURO, AFC Asian Cup.
 
-للبناء محلياً: افتح مجلد `android/` في Android Studio، أو نفّذ:
-```bash
-gradle -p android :app:assembleDebug
-```
-الحد الأدنى Android 8.0 (API 26)، ولا توجد تبعيات مكتبات إضافية.
+Data: hourly docs/feed.json from GitHub Actions. ESPN and TheSportsDB endpoints can be incomplete; optional API_FOOTBALL_KEY may improve coverage. Live statistics, lineups and standings are displayed only when sourced. The verified Iraqi Stars League snapshot from October 30, 2026 is time-limited.
 
-## الأخبار العربية وتصنيف الأقسام
-- تُسحب موجزات عربية متخصصة عبر RSS (العالم، السياسة، الاقتصاد، التقنية، الذكاء الاصطناعي، الرياضة). مصادر Google News RSS قد تكون محدودة أو متغيرة.
-- تُطبّق ترجمة تلقائية لأهم العناوين الإنجليزية عندما تتوفر خدمة ترجمة، مع خيار `GOOGLE_TRANSLATE_API_KEY` الرسمي داخل Secrets. يوجد مسار مجاني غير رسمي بدون ضمان توفر؛ **العنوان غير المترجم لا يُنشر إطلاقاً**.
-- لا تُعرض أخبار مختلقة لملء قسم فارغ؛ إن لم تتوفر بيانات موثوقة، يوضح التطبيق ذلك.
-- التصنيف يستند إلى مجال الموجز وكلمات دقيقة في عنوان الخبر لتقليل الأخطاء.
+No downloaded images or historical feed files stored on-device. Only followed team names are saved in SharedPreferences.
 
-## تحديث الهوية البصرية والجدول الأسبوعي (1.2.0)
-- تحسين الترويسة الصحفية، خطوط العناوين، ألوان الورق والعاج، الفواصل، وأيقونات شريط التنقل باستخدام عناصر Android أصيلة دون تحميل صور.
-- شاشة مباريات قابلة للتصفية حسب الأسبوع (7 أيام بدءاً من اليوم بتوقيت بغداد)، اليوم، غداً، والبطولة؛ المباريات مجمّعة حسب تاريخ اللعب.
-- مسار مستقل للدوري العراقي مع جدول الجولة 12 المنشور على موقع دوري نجوم العراق والمؤكد في 30 أكتوبر 2026، يعمل كبديل محدود حتى 31 أكتوبر، وبعدها تنتهي البيانات الثابتة تلقائياً لتجنب اختلاق مباريات.
-- بقية البطولات تُجلب بالمجموعات الشهرية من ESPN وتُفلتر إلى سبعة أيام، ويُستخدم TheSportsDB للأسبوع نفسه ضمن قيود تغطيته.
-- لا تظهر شعارات أندية أو صور داخل التطبيق؛ الأخبار نصية لتقليل التخزين.
-- ملاحظة: تغطية الدوري العراقي المستقبلية الكاملة تحتاج إلى مصدر رسمي آلي ثابت أو اشتراك API-Football يشمله.
-- مصادر الجدول العراقي: [دوري نجوم العراق](https://iraqstarsleague.com/en/matches?league_id=1&round=12)، و[TNT Sports](https://www.tntsports.co.uk/football/iraqi-league/calendar-results.shtml).
-
-## المباريات (بدون مفتاح إلزامي)
-- يحاول GitHub جلب مباريات البطولات الرئيسية من واجهة ESPN العامة غير الموثقة، مع مصدر TheSportsDB المجاني كدعم إضافي للدوري العراقي.
-- يستطيع المستخدم إضافة `API_FOOTBALL_KEY` لتحسين التغطية، لكن **ليس ضرورياً لبدء جلب المباريات**.
-- لا يُضمن عرض مباريات كل بطولة كل يوم؛ بعضها لا يلعب يومياً، والدوري العراقي قد لا تتوفر تغطيته لدى المصادر المجانية.
-- شغّل `Refresh news and fixtures` لإنشاء `docs/feed.json`. وقد تتأخر التحديثات المجدولة على GitHub.
-
-## المظهر ليلاً
-- تم تعطيل `Force Dark` وتوفير ثيم ليلي صريح مطابق للثيم النهاري: خلفية عاجية `#F8F2E6` ونص جوزي `#4C2D1F` حتى عندما يكون الجهاز بوضع Dark Mode.
-
-## حدود الإصدار
-- إشعارات الأخبار الفورية غير مفعّلة؛ يتطلب تنفيذها خدمة Push.
-- لا تتوفر الأخبار خارج الشبكة باستثناء واجهة المعاينة التجريبية.
-- البيانات المستلمة لا تُحفظ على القرص، لكن Android قد يستخدم مساحة قليلة للتطبيق والنظام لا يمكن إلغاؤها.
-- لم يُختبر APK بعد على كل المقاسات؛ الاختبار على أجهزة حقيقية يظل مطلوباً.
-
-## المصادر
-- [Android Developers](https://developer.android.com/)
-- [API-Football](https://www.api-football.com/documentation_v3)
-- [GitHub Actions](https://docs.github.com/en/actions)
+Build APK with .github/workflows/build-android.yml. Debug-signed APK is for testing, not Play Store publishing. Minimum Android 8.0.

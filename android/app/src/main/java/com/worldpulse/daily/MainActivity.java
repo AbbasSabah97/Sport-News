@@ -1,5 +1,4 @@
 package com.worldpulse.daily;
-
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -8,755 +7,423 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
-import android.speech.tts.TextToSpeech;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.inputmethod.InputMethodManager;
-import android.content.Context;
-import android.widget.EditText;
-import android.widget.FrameLayout;
-import android.widget.HorizontalScrollView;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
-import android.widget.Toast;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Set;
+import android.widget.*;
+import org.json.*;
+import java.time.*;
+import java.time.format.*;
+import java.util.*;
 
 public class MainActivity extends Activity {
-    private static final int PAPER = Color.rgb(250,245,235);
-    private static final int CREAM = Color.rgb(243,231,213);
-    private static final int WALNUT = Color.rgb(76,45,31);
-    private static final int LIGHT_WALNUT = Color.rgb(119,82,59);
-    private static final int RULE = Color.rgb(203,181,151);
-    private static final int ACCENT = Color.rgb(106,48,34);
-    private static final ZoneId BAGHDAD = ZoneId.of("Asia/Baghdad");
-    private static final String[] TABS = {"الرئيسية","الأخبار","المباريات","التقرير","المزيد"};
-    private static final String[] CATEGORIES = {"الكل","العالم","سياسة","اقتصاد","تقنية","الذكاء الاصطناعي","رياضة"};
+  static final int NAVY=Color.rgb(27,43,91), ORANGE=Color.rgb(255,119,48),
+      SKY=Color.rgb(237,241,252), BG=Color.rgb(248,249,253), WHITE=Color.WHITE,
+      MUTED=Color.rgb(113,124,151), PALE=Color.rgb(255,235,220), GREEN=Color.rgb(22,163,100);
+  static final ZoneId ZONE=ZoneId.of("Asia/Baghdad");
+  static final String[] IDS={"iraq","spain","england","ucl","worldcup","euro","asiacup"};
+  static final String[] LEAGUES={"دوري نجوم العراق","الدوري الإسباني","الدوري الإنجليزي الممتاز",
+       "دوري أبطال أوروبا","كأس العالم FIFA","كأس أمم أوروبا","كأس أمم آسيا"};
+  static final String[] ICONS={"🇮🇶","🇪🇸","🏴","⚽","🏆","🇪🇺","🌏"};
+  static final String[] TABS={"الرئيسية","المباريات","البطولات","المتابعة","المزيد"};
+  static final String[] TAB_ICONS={"⌂","⚽","🏆","☆","☰"};
+  final FeedClient client=new FeedClient();
+  JSONObject data=new JSONObject(), match=null;
+  SharedPreferences prefs;
+  Set<String> following=new HashSet<>();
+  LinearLayout page;
+  int tab=0,day=-1,detailTab=0,leagueTab=0;
+  String league="all",leaguePage=null,teamPage=null,error=null;
+  boolean online=false,loading=false;
 
-    private final FeedClient client = new FeedClient();
-    private JSONObject feed = new JSONObject();
-    private SharedPreferences preferences;
-    private final Set<String> favorites = new HashSet<>();
-    private LinearLayout container;
-    private LinearLayout bottomBar;
-    private LinearLayout articleList;
-    private LinearLayout chips;
-    private TextToSpeech speaker;
-    private int tab = 0;
-    private String category = "الكل";
-    private String competition = "all";
-    private String matchWindow = "week";
-    private String search = "";
-    private JSONObject openedArticle = null;
-    private boolean favoritesPage = false;
-    private boolean loading = false;
-    private String error = null;
-    private boolean dataReady = false;
-    private long lastRefresh = 0;
-
-    @Override public void onCreate(Bundle state) {
-        super.onCreate(state);
-        if (android.os.Build.VERSION.SDK_INT >= 29) {
-            getWindow().getDecorView().setForceDarkAllowed(false);
-        }
-        getWindow().setStatusBarColor(PAPER);
-        getWindow().setNavigationBarColor(PAPER);
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
-        preferences = getSharedPreferences("worldpulse_prefs", MODE_PRIVATE);
-        favorites.addAll(preferences.getStringSet("saved_ids", new HashSet<>()));
-        try {
-            byte[] raw;
-            try (java.io.InputStream in = getAssets().open("preview-feed.json");
-                 java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
-                byte[] chunk = new byte[2048];
-                int length;
-                while ((length = in.read(chunk)) != -1) {
-                    if (out.size() + length > 30_000) break;
-                    out.write(chunk, 0, length);
-                }
-                raw = out.toByteArray();
-            }
-            feed = new JSONObject(new String(raw, java.nio.charset.StandardCharsets.UTF_8));
-        } catch (Exception ignored) { }
-        render();
-        refresh(false);
+  @Override public void onCreate(Bundle b){
+    super.onCreate(b);
+    if(android.os.Build.VERSION.SDK_INT>=29)getWindow().getDecorView().setForceDarkAllowed(false);
+    getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(WHITE);
+    getWindow().getDecorView().setSystemUiVisibility(
+        View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+    prefs=getSharedPreferences("football_follows",MODE_PRIVATE);
+    following.addAll(prefs.getStringSet("teams",new HashSet<>()));
+    try(java.io.InputStream in=getAssets().open("preview-feed.json");
+        java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
+      byte[] bfr=new byte[2048];int n;
+      while((n=in.read(bfr))>=0 && out.size()+n<30000)out.write(bfr,0,n);
+      data=new JSONObject(out.toString("UTF-8"));
+    }catch(Exception ignored){}
+    render();refresh();
+  }
+  int dp(int x){return Math.round(x*getResources().getDisplayMetrics().density);}
+  GradientDrawable fill(int color,int r){
+    GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(dp(r));return g;
+  }
+  GradientDrawable gradient(int c1,int c2,int r){
+    GradientDrawable g=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{c1,c2});
+    g.setCornerRadius(dp(r));return g;
+  }
+  LinearLayout col(){LinearLayout a=new LinearLayout(this);a.setOrientation(1);a.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);return a;}
+  LinearLayout row(){LinearLayout a=new LinearLayout(this);a.setOrientation(0);a.setGravity(Gravity.CENTER_VERTICAL);a.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);return a;}
+  TextView txt(String s,int size,boolean bold,int color){
+    TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);
+    t.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);t.setGravity(Gravity.CENTER_VERTICAL);
+    t.setTypeface(Typeface.create("sans-serif",bold?Typeface.BOLD:Typeface.NORMAL));return t;
+  }
+  void add(LinearLayout p,View v){p.addView(v,new LinearLayout.LayoutParams(-1,-2));}
+  void wt(LinearLayout p,View v,int w){p.addView(v,new LinearLayout.LayoutParams(0,-2,w));}
+  void gap(LinearLayout p,int n){View v=new View(this);p.addView(v,new LinearLayout.LayoutParams(1,dp(n)));}
+  void card(LinearLayout p,LinearLayout c){
+    c.setPadding(dp(15),dp(15),dp(15),dp(15));c.setBackground(fill(WHITE,17));
+    LinearLayout.LayoutParams par=new LinearLayout.LayoutParams(-1,-2);par.bottomMargin=dp(10);p.addView(c,par);
+  }
+  TextView pill(String s,boolean active,Runnable action){
+    TextView t=txt(s,13,active,active?WHITE:NAVY);
+    t.setGravity(Gravity.CENTER);t.setPadding(dp(12),dp(10),dp(12),dp(10));
+    t.setBackground(fill(active?ORANGE:SKY,12));t.setOnClickListener(v->action.run());return t;
+  }
+  void chip(LinearLayout parent,String s,boolean active,Runnable action){
+    TextView b=pill(s,active,action);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-2);
+    p.setMargins(dp(3),0,dp(3),0);parent.addView(b,p);
+  }
+  void scrollChips(LinearLayout chips){
+    HorizontalScrollView s=new HorizontalScrollView(this);s.setHorizontalScrollBarEnabled(false);s.addView(chips);add(page,s);gap(page,14);
+  }
+  void heading(String s,String more,Runnable action){
+    LinearLayout r=row();wt(r,txt(s,19,true,NAVY),1);
+    if(more!=null){TextView v=txt(more+"  ‹",12,true,ORANGE);v.setOnClickListener(w->action.run());r.addView(v);}
+    add(page,r);gap(page,11);
+  }
+  void toolbar(String label){
+    LinearLayout bar=row();wt(bar,txt("WorldPulse",26,true,NAVY),1);
+    TextView badge=txt("⚽",20,true,ORANGE);badge.setPadding(dp(10),dp(7),dp(10),dp(7));
+    badge.setBackground(fill(PALE,13));bar.addView(badge);add(page,bar);
+    add(page,txt("FOOTBALL  •  "+label,11,true,ORANGE));gap(page,15);
+  }
+  void message(String s){
+    TextView v=txt(s,13,false,NAVY);v.setPadding(dp(12),dp(13),dp(12),dp(13));
+    v.setBackground(fill(PALE,13));add(page,v);gap(page,11);
+  }
+  void blank(String s){
+    LinearLayout c=col();c.setGravity(Gravity.CENTER);
+    TextView icon=txt("⚽",27,true,ORANGE);icon.setGravity(Gravity.CENTER);add(c,icon);gap(c,8);
+    TextView t=txt(s,14,false,MUTED);t.setGravity(Gravity.CENTER);add(c,t);card(page,c);
+  }
+  void reloadNotice(){
+    if(!online)message("البيانات التجريبية ظاهرة حتى اكتمال التحديث من الإنترنت.");
+    if(error!=null)message(error);
+    try{
+      if(!LocalDate.parse(data.optString("week_start")).equals(LocalDate.now(ZONE)))
+        message("الجدول قديم؛ اضغط تحديث للحصول على مباريات الأسبوع الحالي.");
+    }catch(Exception ignored){}
+  }
+  JSONArray list(String k){JSONArray a=data.optJSONArray(k);return a==null?new JSONArray():a;}
+  JSONObject at(JSONArray a,int i){JSONObject v=a.optJSONObject(i);return v==null?new JSONObject():v;}
+  LocalDate local(String iso){
+    try{return OffsetDateTime.parse(iso).atZoneSameInstant(ZONE).toLocalDate();}
+    catch(Exception e){return null;}
+  }
+  String time(String iso){
+    try{return OffsetDateTime.parse(iso).atZoneSameInstant(ZONE).format(DateTimeFormatter.ofPattern("HH:mm"));}
+    catch(Exception e){return "--:--";}
+  }
+  String date(LocalDate d){
+    return d==null?"موعد غير محدد":d.format(DateTimeFormatter.ofPattern("EEEE، d MMMM",new Locale("ar","IQ")));
+  }
+  String leagueName(String code){
+    for(int i=0;i<IDS.length;i++)if(IDS[i].equals(code))return LEAGUES[i];
+    return code;
+  }
+  String leagueIcon(String code){
+    for(int i=0;i<IDS.length;i++)if(IDS[i].equals(code))return ICONS[i];return "⚽";
+  }
+  String status(String s){
+    if(s.equals("NS"))return "لم تبدأ";if(s.equals("FT")||s.equals("AET")||s.equals("PEN"))return "انتهت";
+    if(s.equals("PST"))return "مؤجلة";if(s.equals("CANC"))return "ملغاة";if(s.equals("HT"))return "استراحة";
+    if(s.equals("1H")||s.equals("2H")||s.equals("LIVE"))return "● مباشر";return s;
+  }
+  String team(String x){
+    if(x==null)return "—";
+    switch(x.toLowerCase(Locale.ROOT)){
+      case "real madrid":return "ريال مدريد";case "fc barcelona":case "barcelona":return "برشلونة";
+      case "arsenal":return "أرسنال";case "chelsea":return "تشيلسي";case "liverpool":return "ليفربول";
+      case "manchester city":return "مانشستر سيتي";case "manchester united":return "مانشستر يونايتد";
+      case "villarreal":return "فياريال";case "espanyol":return "إسبانيول";
+      case "bayern munich":return "بايرن ميونخ";case "atletico madrid":return "أتلتيكو مدريد";
+      case "al shorta":return "الشرطة";case "al zawraa":return "الزوراء";case "al talaba":return "الطلبة";
+      default:return x;
     }
-
-    private int dp(float n) { return Math.round(n * getResources().getDisplayMetrics().density); }
-
-    private GradientDrawable background(int color, float radius, int outline) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        d.setCornerRadius(dp(radius));
-        if (outline != 0) d.setStroke(dp(1), outline);
-        return d;
+  }
+  String score(JSONObject m){
+    return !m.isNull("home_goals")&&!m.isNull("away_goals")
+        ?m.optInt("home_goals")+" : "+m.optInt("away_goals"):time(m.optString("kickoff"));
+  }
+  void render(){
+    LinearLayout root=col();root.setBackgroundColor(BG);setContentView(root);
+    ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);
+    root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+    page=col();page.setPadding(dp(16),dp(17),dp(16),dp(25));
+    scroll.addView(page,new ScrollView.LayoutParams(-1,-2));
+    if(match!=null)matchPage();
+    else if(teamPage!=null)teamDetails();
+    else if(leaguePage!=null)leagueDetails();
+    else if(tab==0)home();
+    else if(tab==1)matches();
+    else if(tab==2)competitions();
+    else if(tab==3)favorites();
+    else settings();
+    LinearLayout nav=row();nav.setBackground(fill(WHITE,0));nav.setPadding(dp(3),dp(8),dp(3),dp(8));
+    for(int i=0;i<TABS.length;i++){
+      final int k=i;LinearLayout item=col();item.setGravity(Gravity.CENTER);
+      boolean selected=tab==i&&match==null&&teamPage==null&&leaguePage==null;
+      TextView ic=txt(TAB_ICONS[i],20,true,selected?ORANGE:MUTED);
+      ic.setGravity(Gravity.CENTER);add(item,ic);
+      TextView lb=txt(TABS[i],11,selected,selected?ORANGE:MUTED);
+      lb.setGravity(Gravity.CENTER);add(item,lb);
+      item.setOnClickListener(v->{tab=k;match=null;teamPage=null;leaguePage=null;render();});
+      nav.addView(item,new LinearLayout.LayoutParams(0,dp(53),1));
     }
-    private LinearLayout column() {
-        LinearLayout c = new LinearLayout(this);
-        c.setOrientation(LinearLayout.VERTICAL);
-        c.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        return c;
+    add(root,nav);
+  }
+  void home(){
+    LinearLayout hero=col();hero.setPadding(dp(19),dp(24),dp(19),dp(24));
+    hero.setBackground(gradient(Color.rgb(255,153,90),Color.rgb(255,229,211),22));
+    add(hero,txt("WorldPulse",28,true,NAVY));
+    add(hero,txt("عالم كرة القدم بين يديك",17,true,NAVY));gap(hero,6);
+    add(hero,txt("سبع بطولات • نتائج ومباريات بتوقيت بغداد",12,false,NAVY));
+    add(page,hero);gap(page,18);
+    heading("البطولات", "الكل",()->{tab=2;render();});
+    LinearLayout quick=row();
+    for(int i=0;i<4;i++){
+      final String id=IDS[i];
+      LinearLayout box=col();box.setGravity(Gravity.CENTER);box.setBackground(fill(WHITE,14));
+      TextView e=txt(ICONS[i],20,true,NAVY);e.setGravity(Gravity.CENTER);add(box,e);
+      TextView n=txt(new String[]{"العراقي","LaLiga","Premier","Champions"}[i],11,true,NAVY);
+      n.setGravity(Gravity.CENTER);add(box,n);
+      box.setOnClickListener(v->{leaguePage=id;leagueTab=0;render();});
+      LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(75),1);
+      p.setMargins(dp(3),0,dp(3),0);quick.addView(box,p);
     }
-    private LinearLayout row() {
-        LinearLayout r = new LinearLayout(this);
-        r.setOrientation(LinearLayout.HORIZONTAL);
-        r.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        r.setGravity(Gravity.CENTER_VERTICAL);
-        return r;
+    add(page,quick);gap(page,20);
+    heading("مباريات هذا الأسبوع","عرض الكل",()->{tab=1;day=-1;render();});
+    reloadNotice();
+    JSONArray fixtures=list("matches");int count=0;
+    for(int i=0;i<fixtures.length()&&count<8;i++){
+      JSONObject m=at(fixtures,i);LocalDate d=local(m.optString("kickoff"));
+      if(d==null||d.isBefore(LocalDate.now(ZONE))||d.isAfter(LocalDate.now(ZONE).plusDays(6)))continue;
+      matchCard(page,m,true);count++;
     }
-    private TextView text(String value, int size, boolean bold) {
-        TextView t = new TextView(this);
-        t.setText(value);
-        t.setTextSize(size);
-        t.setTextColor(WALNUT);
-        t.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
-        t.setGravity(Gravity.CENTER_VERTICAL);
-        t.setTypeface(Typeface.create("serif",bold?Typeface.BOLD:Typeface.NORMAL));
-        t.setIncludeFontPadding(true);
-        return t;
+    if(count==0)blank("لا تتوفر مباريات معلنة لهذا الأسبوع في المصدر.");
+    gap(page,14);heading("آخر أخبار كرة القدم",null,null);
+    JSONArray news=list("news");count=0;
+    for(int i=0;i<news.length()&&count<4;i++){
+      JSONObject story=at(news,i);
+      if(!"رياضة".equals(story.optString("category")))continue;
+      LinearLayout c=col();add(c,txt(story.optString("title"),14,true,NAVY));gap(c,7);
+      add(c,txt(story.optString("source"),11,false,MUTED));
+      c.setOnClickListener(v->open(story.optString("url")));card(page,c);count++;
     }
-    private TextView muted(String value, int size) {
-        TextView t=text(value,size,false);
-        t.setTextColor(LIGHT_WALNUT);
-        return t;
+    if(count==0)blank("لا توجد أخبار رياضية عربية حديثة في الموجز.");
+  }
+  void matchCard(LinearLayout target,JSONObject m,boolean showLeague){
+    LinearLayout c=col();
+    if(showLeague){
+      LinearLayout r=row();wt(r,txt(leagueIcon(m.optString("competition_id"))+"  "+
+          leagueName(m.optString("competition_id")),12,true,NAVY),1);
+      r.addView(txt(date(local(m.optString("kickoff"))),11,false,MUTED));add(c,r);gap(c,11);
     }
-    private void add(LinearLayout host, View child) {
-        host.addView(child, new LinearLayout.LayoutParams(-1,-2));
+    LinearLayout teams=row();
+    TextView home=txt(team(m.optString("home")),14,true,NAVY),away=txt(team(m.optString("away")),14,true,NAVY);
+    home.setGravity(Gravity.CENTER);away.setGravity(Gravity.CENTER);
+    TextView points=txt(score(m),17,true,ORANGE);points.setGravity(Gravity.CENTER);
+    wt(teams,home,12);wt(teams,points,8);wt(teams,away,12);add(c,teams);gap(c,9);
+    LinearLayout bottom=row();
+    wt(bottom,txt(status(m.optString("status","NS")),11,true,MUTED),1);
+    bottom.addView(txt(time(m.optString("kickoff"))+" • بغداد",11,false,MUTED));
+    add(c,bottom);c.setOnClickListener(v->{match=m;detailTab=0;render();});card(target,c);
+  }
+  void dates(){
+    LinearLayout r=row();chip(r,"الأسبوع",day==-1,()->{day=-1;render();});
+    for(int i=0;i<7;i++){
+      final int n=i;LocalDate date=LocalDate.now(ZONE).plusDays(i);
+      String label=i==0?"اليوم":i==1?"غداً":date.format(DateTimeFormatter.ofPattern("EEE dd",new Locale("ar","IQ")));
+      chip(r,label,day==i,()->{day=n;render();});
     }
-    private void gap(LinearLayout host, int height) {
-        View v=new View(this);
-        host.addView(v,new LinearLayout.LayoutParams(1,dp(height)));
+    scrollChips(r);
+  }
+  void filters(){
+    LinearLayout r=row();chip(r,"كل البطولات",league.equals("all"),()->{league="all";render();});
+    for(int i=0;i<IDS.length;i++){
+      final String id=IDS[i];chip(r,ICONS[i]+" "+LEAGUES[i],league.equals(id),()->{league=id;render();});
     }
-    private void rule(LinearLayout host) {
-        View v = new View(this);
-        v.setBackgroundColor(RULE);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(1));
-        p.topMargin=dp(9);
-        p.bottomMargin=dp(9);
-        host.addView(v,p);
+    scrollChips(r);
+  }
+  void matches(){
+    toolbar("المباريات");heading("جدول المباريات",null,null);
+    dates();filters();reloadNotice();JSONArray a=list("matches");
+    LocalDate last=null;int count=0;
+    for(int i=0;i<a.length();i++){
+      JSONObject m=at(a,i);LocalDate d=local(m.optString("kickoff"));
+      if(d==null)continue;
+      if(!league.equals("all")&&!league.equals(m.optString("competition_id")))continue;
+      if(day==-1?(d.isBefore(LocalDate.now(ZONE))||d.isAfter(LocalDate.now(ZONE).plusDays(6))):
+          !d.equals(LocalDate.now(ZONE).plusDays(day)))continue;
+      if(!d.equals(last)){add(page,txt("◷  "+date(d),14,true,NAVY));gap(page,9);last=d;}
+      matchCard(page,m,true);count++;
     }
-    private void space(LinearLayout host, View view, float weight) {
-        host.addView(view, new LinearLayout.LayoutParams(0,-2,weight));
+    if(count==0)blank("لا توجد مباريات مؤكدة للفترة المختارة. قد لا تتوفر تغطية جميع الدوريات.");
+  }
+  void competitions(){
+    toolbar("البطولات");heading("البطولات السبع",null,null);
+    for(int i=0;i<IDS.length;i++){
+      final String id=IDS[i];LinearLayout c=row();
+      c.addView(txt(ICONS[i]+"  ",24,true,NAVY));
+      LinearLayout sub=col();add(sub,txt(LEAGUES[i],16,true,NAVY));
+      add(sub,txt("المباريات والترتيب عند توفر البيانات",11,false,MUTED));wt(c,sub,1);
+      c.addView(txt("‹",22,true,ORANGE));c.setOnClickListener(v->{leaguePage=id;leagueTab=0;render();});
+      card(page,c);
     }
-    private void card(LinearLayout parent, View item) {
-        LinearLayout wrap=column();
-        wrap.setPadding(dp(13),dp(12),dp(13),dp(12));
-        wrap.setBackground(background(CREAM,6,RULE));
-        add(wrap,item);
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
-        lp.bottomMargin=dp(10);
-        parent.addView(wrap,lp);
+  }
+  void back(String label,Runnable action){
+    TextView b=txt("›  "+label,14,true,ORANGE);b.setPadding(0,0,0,dp(15));
+    b.setOnClickListener(v->action.run());add(page,b);
+  }
+  void leagueDetails(){
+    back("البطولات",()->{leaguePage=null;tab=2;render();});toolbar("البطولات");
+    LinearLayout hero=col();hero.setGravity(Gravity.CENTER);
+    TextView symbol=txt(leagueIcon(leaguePage),28,true,NAVY);symbol.setGravity(Gravity.CENTER);add(hero,symbol);
+    TextView name=txt(leagueName(leaguePage),21,true,NAVY);name.setGravity(Gravity.CENTER);add(hero,name);
+    card(page,hero);
+    LinearLayout r=row();wt(r,pill("المباريات",leagueTab==0,()->{leagueTab=0;render();}),1);
+    wt(r,pill("الترتيب",leagueTab==1,()->{leagueTab=1;render();}),1);add(page,r);gap(page,14);
+    if(leagueTab==0){
+      JSONArray games=list("matches");int n=0;LocalDate last=null;
+      for(int i=0;i<games.length();i++){
+        JSONObject m=at(games,i);if(!leaguePage.equals(m.optString("competition_id")))continue;
+        LocalDate d=local(m.optString("kickoff"));if(d==null)continue;
+        if(!d.equals(last)){add(page,txt(date(d),14,true,NAVY));gap(page,10);last=d;}
+        matchCard(page,m,false);n++;
+      }
+      if(n==0)blank("لا تتوفر مباريات منشورة لهذه البطولة حالياً.");
+    }else standings();
+  }
+  void standings(){
+    JSONObject all=data.optJSONObject("standings");
+    JSONArray a=all==null?null:all.optJSONArray(leaguePage);
+    if(a==null||a.length()==0){blank("ترتيب البطولة غير متاح حالياً من المصدر. لا نعرض أرقاماً تقديرية.");return;}
+    LinearLayout head=row();wt(head,txt("الفريق",12,true,MUTED),18);
+    for(String x:new String[]{"لعب","ف","ت","خ","ن"}){TextView t=txt(x,11,true,MUTED);t.setGravity(Gravity.CENTER);wt(head,t,4);}
+    add(page,head);gap(page,7);
+    for(int i=0;i<a.length();i++){
+      JSONObject team=at(a,i);LinearLayout r=row();
+      String name=team.optString("team");
+      wt(r,txt(team.optInt("rank",i+1)+". "+team(name),12,i<3,NAVY),18);
+      for(String key:new String[]{"played","wins","draws","losses","points"}){
+        TextView t=txt(team.has(key)?""+team.optInt(key):"—",12,key.equals("points"),
+            key.equals("points")?ORANGE:NAVY);t.setGravity(Gravity.CENTER);wt(r,t,4);
+      }
+      r.setOnClickListener(v->{teamPage=name;render();});card(page,r);
     }
-    private TextView button(String label, boolean selected, Runnable action) {
-        TextView b=text(label,14,selected);
-        b.setTextColor(selected?PAPER:WALNUT);
-        b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(13),dp(9),dp(13),dp(9));
-        b.setBackground(background(selected?WALNUT:CREAM,7,selected?0:RULE));
-        b.setOnClickListener(v->action.run());
-        return b;
+  }
+  void matchPage(){
+    back("المباريات",()->{match=null;render();});toolbar(leagueName(match.optString("competition_id")));
+    LinearLayout hero=col();hero.setGravity(Gravity.CENTER);hero.setPadding(dp(16),dp(23),dp(16),dp(23));
+    hero.setBackground(gradient(NAVY,Color.rgb(68,92,167),22));
+    TextView teams=txt(team(match.optString("home"))+"  ×  "+team(match.optString("away")),17,true,WHITE);
+    teams.setGravity(Gravity.CENTER);add(hero,teams);gap(hero,12);
+    TextView sc=txt(score(match),35,true,WHITE);sc.setGravity(Gravity.CENTER);add(hero,sc);gap(hero,9);
+    TextView st=txt(status(match.optString("status"))+" • "+date(local(match.optString("kickoff"))),12,false,WHITE);
+    st.setGravity(Gravity.CENTER);add(hero,st);add(page,hero);gap(page,17);
+    LinearLayout r=row();String[] labels={"الملخص","الإحصاءات","التشكيلة"};
+    for(int i=0;i<3;i++){final int n=i;wt(r,pill(labels[i],detailTab==i,()->{detailTab=n;render();}),1);}
+    add(page,r);gap(page,16);
+    if(detailTab==0){
+      detail("الموعد",time(match.optString("kickoff"))+" بتوقيت بغداد");
+      detail("البطولة",leagueName(match.optString("competition_id")));
+      detail("الحالة",status(match.optString("status")));
+      detail("المصدر",match.optString("provider","غير محدد"));
+      LinearLayout follows=row();
+      String h=match.optString("home"),a=match.optString("away");
+      wt(follows,pill("☆ "+team(h),following.contains(h),()->toggle(h)),1);
+      wt(follows,pill("☆ "+team(a),following.contains(a),()->toggle(a)),1);
+      add(page,follows);gap(page,13);
+      String link=match.optString("source_url");
+      if(link.startsWith("https://"))add(page,pill("رابط المصدر الرسمي ↗",false,()->open(link)));
+    }else if(detailTab==1){
+      JSONObject stats=match.optJSONObject("statistics");
+      if(stats==null||stats.length()==0)blank("إحصاءات المباراة غير متوفرة لدى المزود الحالي.");
+      else{
+        Iterator<String> keys=stats.keys();
+        while(keys.hasNext()){String k=keys.next();detail(k,stats.optString(k));}
+      }
+    }else{
+      JSONArray players=match.optJSONArray("lineups");
+      if(players==null||players.length()==0)blank("التشكيلات لم تتوفر بعد من المصدر.");
+      else for(int i=0;i<players.length();i++)detail("اللاعب "+(i+1),players.optString(i));
     }
-    private void render() {
-        LinearLayout root=column();
-        root.setBackgroundColor(PAPER);
-        root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        setContentView(root);
-        FrameLayout bodyFrame=new FrameLayout(this);
-        root.addView(bodyFrame,new LinearLayout.LayoutParams(-1,0,1));
-        ScrollView scroller=new ScrollView(this);
-        scroller.setFillViewport(true);
-        scroller.setVerticalScrollBarEnabled(false);
-        bodyFrame.addView(scroller,new FrameLayout.LayoutParams(-1,-1));
-        container=column();
-        container.setPadding(dp(17),dp(14),dp(17),dp(24));
-        scroller.addView(container,new ScrollView.LayoutParams(-1,-2));
-        if (openedArticle!=null) drawDetail();
-        else if (favoritesPage) drawFavorites();
-        else switch (tab) {
-            case 0: drawHome();break;
-            case 1: drawNews();break;
-            case 2: drawMatches();break;
-            case 3: drawReport();break;
-            default: drawMore();
-        }
-        bottomBar=row();
-        bottomBar.setPadding(dp(6),dp(6),dp(6),dp(8));
-        bottomBar.setBackground(background(CREAM,0,0));
-        View line = new View(this);
-        line.setBackgroundColor(RULE);
-        root.addView(line,new LinearLayout.LayoutParams(-1,dp(1)));
-        for (int i=0;i<TABS.length;i++) {
-            final int index=i;
-            LinearLayout tabView=column();
-            tabView.setGravity(Gravity.CENTER);
-            String[] ornaments={"⌂","▣","⚽","▤","☷"};
-            String ornament=ornaments[i];
-            TextView sym=text(ornament,17,tab==i);
-            sym.setTextColor(tab==i?ACCENT:LIGHT_WALNUT);
-            sym.setGravity(Gravity.CENTER);
-            add(tabView,sym);
-            TextView label=text(TABS[i],12,tab==i);
-            label.setTextColor(tab==i?ACCENT:LIGHT_WALNUT);
-            label.setGravity(Gravity.CENTER);
-            add(tabView,label);
-            tabView.setOnClickListener(v->{
-                tab=index; openedArticle=null; favoritesPage=false;
-                if(tab==1 && category==null)category="الكل";
-                render();
-            });
-            bottomBar.addView(tabView,new LinearLayout.LayoutParams(0,dp(53),1));
-        }
-        add(root,bottomBar);
+  }
+  void detail(String k,String v){
+    LinearLayout r=row();wt(r,txt(k,14,true,NAVY),1);
+    TextView value=txt(v,13,false,MUTED);value.setGravity(Gravity.END);wt(r,value,2);card(page,r);
+  }
+  void teamDetails(){
+    back("العودة",()->{teamPage=null;render();});toolbar("الفريق");
+    LinearLayout hero=col();hero.setGravity(Gravity.CENTER);
+    TextView e=txt("⚽",26,true,ORANGE);e.setGravity(Gravity.CENTER);add(hero,e);
+    TextView t=txt(team(teamPage),21,true,NAVY);t.setGravity(Gravity.CENTER);add(hero,t);card(page,hero);
+    add(page,pill(following.contains(teamPage)?"★ إلغاء المتابعة":"☆ متابعة الفريق",
+        following.contains(teamPage),()->toggle(teamPage)));
+    gap(page,16);heading("مباريات الفريق",null,null);
+    int count=0;JSONArray a=list("matches");
+    for(int i=0;i<a.length();i++){
+      JSONObject m=at(a,i);
+      if(teamPage.equals(m.optString("home"))||teamPage.equals(m.optString("away"))){
+        matchCard(page,m,true);count++;
+      }
     }
-    private void masthead(String section) {
-        LinearLayout top=row();
-        TextView mark=muted("✦  صحيفة يومية  ✦",12);
-        space(top,mark,1);
-        TextView update=muted("بغداد  |  أخبار العالم",11);
-        update.setGravity(Gravity.END);
-        space(top,update,1);
-        add(container,top);
-        rule(container);
-
-        TextView logo=text("WorldPulse",39,true);
-        logo.setGravity(Gravity.CENTER);
-        logo.setTextColor(WALNUT);
-        add(container,logo);
-        TextView sub=muted("✦    نبض العالم  •  أخبار ورياضة    ✦",13);
-        sub.setGravity(Gravity.CENTER);
-        add(container,sub);
-        gap(container,11);
-
-        LinearLayout edition=row();
-        TextView left=muted("صحيفة رقمية",11);
-        left.setGravity(Gravity.START);
-        TextView center=muted(getDate(),12);
-        center.setGravity(Gravity.CENTER);
-        TextView right=muted(section,11);
-        right.setGravity(Gravity.END);
-        space(edition,left,1);
-        space(edition,center,1);
-        space(edition,right,1);
-        add(container,edition);
-        rule(container);
-        View fineLine=new View(this);
-        fineLine.setBackgroundColor(RULE);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(1));
-        p.bottomMargin=dp(6);
-        container.addView(fineLine,p);
+    if(count==0)blank("لا توجد مباريات لهذا الفريق ضمن نافذة البيانات.");
+  }
+  void favorites(){
+    toolbar("المتابعة");heading("الفرق المتابعة",null,null);
+    if(following.isEmpty())blank("اختر فرقك المفضلة من تفاصيل المباريات أو جدول الترتيب.");
+    else for(String name:new TreeSet<>(following)){
+      LinearLayout c=row();wt(c,txt("★  "+team(name),16,true,NAVY),1);
+      c.addView(txt("عرض  ‹",13,true,ORANGE));
+      c.setOnClickListener(v->{teamPage=name;render();});card(page,c);
     }
-    private String getDate() {
-        return java.time.LocalDate.now(BAGHDAD)
-                .format(DateTimeFormatter.ofPattern("dd / MM / uuuu", Locale.ENGLISH));
-    }
-    private void heading(String title) {
-        gap(container,8);
-        TextView h=text("✦  " + title + "  ✦",21,true);
-        h.setGravity(Gravity.CENTER);
-        add(container,h);
-        rule(container);
-    }
-    private void banner() {
-        String newsStatus=feed.optString("news_status","");
-        if ("demo".equals(newsStatus)) {
-            note("معاينة تجريبية — الأخبار والمباريات المعروضة أمثلة وليست بيانات حقيقية.");
-        } else if (!dataReady || !"ok".equals(newsStatus)) {
-            note("تعذر تحديث بعض الأخبار؛ تأكد من الاتصال بالإنترنت.");
-        }
-        if(error!=null)note(error);
-    }
-    private void note(String message) {
-        TextView note=muted(message,13);
-        note.setPadding(dp(12),dp(11),dp(12),dp(11));
-        note.setBackground(background(CREAM,4,RULE));
-        add(container,note);
-        gap(container,10);
-    }
-    private JSONArray items(String name) {return feed.optJSONArray(name)==null?new JSONArray():feed.optJSONArray(name);}
-    private boolean isArabic(String value) {
-        if (value==null)return false;
-        int arabic=0,latin=0;
-        for(int i=0;i<value.length();i++){
-            char c=value.charAt(i);
-            if (c>=0x0600 && c<=0x06FF)arabic++;
-            else if ((c>='A' && c<='Z')||(c>='a' && c<='z'))latin++;
-        }
-        return arabic>=5 && arabic>=latin;
-    }
-    private JSONObject at(JSONArray data,int i) {return data.optJSONObject(i)==null?new JSONObject():data.optJSONObject(i);}
-    private void storyRow(LinearLayout host,JSONObject item,int index,boolean summary) {
-        String title=item.optString("title","");
-        if(!isArabic(title))return;
-        LinearLayout wrapper=column();
-        LinearLayout line=row();
-        TextView number=text(String.format(Locale.US,"%02d",index),12,true);
-        number.setTextColor(ACCENT);
-        number.setGravity(Gravity.TOP);
-        number.setWidth(dp(32));
-        line.addView(number,new LinearLayout.LayoutParams(dp(36),-2));
-        TextView titleText=text(title,summary?18:16,true);
-        titleText.setLineSpacing(dp(3),1);
-        line.addView(titleText,new LinearLayout.LayoutParams(0,-2,1));
-        add(wrapper,line);
-        String synopsis=item.optString("summary","");
-        if(summary&&!synopsis.isEmpty()){
-            gap(wrapper,6);
-            TextView lead=muted(synopsis,14);
-            lead.setLineSpacing(dp(2),1);
-            add(wrapper,lead);
-        }
-        gap(wrapper,6);
-        TextView source=muted(item.optString("source","")+
-                "    •    "+item.optString("category","")+"    •    "+stamp(item.optString("published_at","")),11);
-        add(wrapper,source);
-        wrapper.setPadding(dp(2),dp(11),dp(2),dp(11));
-        wrapper.setOnClickListener(v->{openedArticle=item;render();});
-        add(host,wrapper);
-        rule(host);
-    }
-    private String stamp(String value) {
-        try {
-            return OffsetDateTime.parse(value).atZoneSameInstant(BAGHDAD)
-                    .format(DateTimeFormatter.ofPattern("dd/MM  HH:mm",Locale.ENGLISH));
-        } catch(Exception ex) { return "—"; }
-    }
-    private void drawHome() {
-        masthead("الصفحة الرئيسية");
-        banner();
-        TextView kicker=muted("العناوين البارزة  /  آخر تحديث "+stamp(feed.optString("generated_at","")),12);
-        add(container,kicker);
-        JSONArray news=items("news");
-        if(news.length()==0)note("لا توجد أخبار منشورة حالياً.");
-        else {
-            int printed=0;
-            for(int i=0;i<news.length() && printed<7;i++){
-                JSONObject item=at(news,i);
-                if(!isArabic(item.optString("title","")))continue;
-                storyRow(container,item,++printed,printed==1);
-            }
-            if(printed==0)note("لم تتوفر عناوين عربية؛ أعد تحديث البيانات.");
-        }
-        heading("آخر أخبار الذكاء الاصطناعي");
-        int aiCount=0;
-        for(int i=0;i<news.length() && aiCount<4;i++){
-            JSONObject item=at(news,i);
-            if("الذكاء الاصطناعي".equals(item.optString("category")) && isArabic(item.optString("title",""))){
-                storyRow(container,item,++aiCount,false);
-            }
-        }
-        if(aiCount==0)note("لا تتوفر حالياً أخبار موثوقة بالعربية في هذا القسم.");
-        add(container,button("عرض قسم الذكاء الاصطناعي",false,()->{
-            tab=1;category="الذكاء الاصطناعي";search="";render();
-        }));
-        heading("مباريات الأسبوع");
-        JSONArray games=items("matches");
-        if(games.length()==0)note("لا توجد مباريات مؤكدة خلال الأيام السبعة المقبلة في المصادر الحالية.");
-        else {
-            int displayed=0;
-            // Feature the verified Iraqi league first, then the rest of the week.
-            for(int i=0;i<games.length() && displayed<3;i++) {
-                JSONObject item=at(games,i);
-                if("iraq".equals(item.optString("competition_id"))){
-                    drawMatch(container,item);
-                    displayed++;
-                }
-            }
-            for(int i=0;i<games.length() && displayed<4;i++) {
-                JSONObject item=at(games,i);
-                if(!"iraq".equals(item.optString("competition_id"))){
-                    drawMatch(container,item);
-                    displayed++;
-                }
-            }
-            add(container,button("عرض جدول الأسبوع كاملاً",false,()->{
-                tab=2;matchWindow="week";competition="all";render();
-            }));
-        }
-    }
-    private void drawNews() {
-        masthead("الأقسام");
-        banner();
-        EditText input=new EditText(this);
-        input.setSingleLine(true);
-        input.setTextSize(15);
-        input.setTextColor(WALNUT);
-        input.setHintTextColor(LIGHT_WALNUT);
-        input.setHint("ابحث في عناوين الأخبار...");
-        input.setPadding(dp(12),dp(9),dp(12),dp(9));
-        input.setBackground(background(CREAM,4,RULE));
-        input.setText(search);
-        add(container,input);
-        gap(container,12);
-        HorizontalScrollView scroll=new HorizontalScrollView(this);
-        scroll.setHorizontalScrollBarEnabled(false);
-        chips=row();
-        scroll.addView(chips);
-        add(container,scroll);
-        renderCategoryChips();
-        heading("آخر الأخبار");
-        articleList=column();
-        add(container,articleList);
-        updateArticles();
-        input.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s,int start,int count,int after){}
-            @Override public void onTextChanged(CharSequence s,int start,int before,int count){
-                search=s.toString().trim();updateArticles();
-            }
-            @Override public void afterTextChanged(Editable e){}
-        });
-    }
-    private void renderCategoryChips() {
-        chips.removeAllViews();
-        for(String c:CATEGORIES) {
-            TextView b=button(c,c.equals(category),()->{
-                category=c;renderCategoryChips();updateArticles();
-            });
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-2);
-            p.setMargins(dp(3),0,dp(3),0);
-            chips.addView(b,p);
-        }
-    }
-    private void updateArticles() {
-        if(articleList==null)return;
-        articleList.removeAllViews();
-        JSONArray news=items("news");
-        int count=0;
-        for(int i=0;i<news.length();i++) {
-            JSONObject item=at(news,i);
-            if(!isArabic(item.optString("title","")))continue;
-            if(!category.equals("الكل")&&!category.equals(item.optString("category")))continue;
-            String query=(item.optString("title")+" "+item.optString("summary")+" "+item.optString("source"))
-                    .toLowerCase(Locale.ROOT);
-            if(!query.contains(search.toLowerCase(Locale.ROOT)))continue;
-            storyRow(articleList,item,++count,false);
-        }
-        if(count==0)add(articleList,muted("لا توجد نتائج لهذا التصنيف أو البحث.",14));
-    }
-    private void drawDetail() {
-        TextView back=button("‹  العودة إلى الأخبار",false,()->{openedArticle=null;render();});
-        add(container,back);
-        masthead("تفاصيل الخبر");
-        TextView category=muted(openedArticle.optString("category","العالم"),12);
-        add(container,category);
-        gap(container,10);
-        TextView title=text(openedArticle.optString("title",""),26,true);
-        title.setLineSpacing(dp(5),1);
-        add(container,title);
-        gap(container,10);
-        add(container,muted(openedArticle.optString("source","")+"   •   "+
-                stamp(openedArticle.optString("published_at","")),12));
-        rule(container);
-        TextView summary=text(openedArticle.optString("summary","افتح المصدر لقراءة الخبر كاملاً."),17,false);
-        summary.setLineSpacing(dp(6),1);
-        add(container,summary);
-        gap(container,20);
-        final String id=openedArticle.optString("id","");
-        add(container,button(favorites.contains(id)?"★ إزالة من المفضلة":"☆ حفظ الخبر",false,()->{
-            if(favorites.contains(id))favorites.remove(id);
-            else if(favorites.size()<120)favorites.add(id);
-            preferences.edit().putStringSet("saved_ids",new HashSet<>(favorites)).apply();
-            render();
-        }));
-        gap(container,10);
-        String link=openedArticle.optString("url","");
-        if(link.startsWith("https://")) {
-            add(container,button("قراءة المقال في موقع المصدر ↗",true,()->openLink(link)));
-            gap(container,10);
-            add(container,button("مشاركة رابط الخبر",false,()->{
-                Intent send=new Intent(Intent.ACTION_SEND);
-                send.setType("text/plain");
-                send.putExtra(Intent.EXTRA_TEXT,link);
-                startActivity(Intent.createChooser(send,"مشاركة الخبر"));
-            }));
-        }
-        gap(container,12);
-        add(container,muted("يعرض التطبيق نصوصاً قصيرة فقط. وقد يحتوي موقع المصدر الخارجي على صور.",12));
-    }
-    private void openLink(String url) {
-        try {
-            Intent intent=new Intent(Intent.ACTION_VIEW,Uri.parse(url));
-            startActivity(intent);
-        } catch(Exception e) {Toast.makeText(this,"لا يوجد متصفح متاح",Toast.LENGTH_SHORT).show();}
-    }
-    private java.time.LocalDate matchDay(String stamp) {
-        try {
-            return OffsetDateTime.parse(stamp).atZoneSameInstant(BAGHDAD).toLocalDate();
-        } catch(Exception ex){return null;}
-    }
-    private String matchDayTitle(java.time.LocalDate day) {
-        if(day==null)return "موعد غير محدد";
-        return day.format(DateTimeFormatter.ofPattern("EEEE، d MMMM yyyy", new Locale("ar","IQ")));
-    }
-    private String matchClock(String stamp) {
-        try {
-            return OffsetDateTime.parse(stamp).atZoneSameInstant(BAGHDAD)
-                    .format(DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH));
-        } catch(Exception ex){return "—";}
-    }
-    private boolean matchInSelectedWindow(JSONObject match) {
-        java.time.LocalDate day=matchDay(match.optString("kickoff",""));
-        if(day==null)return false;
-        java.time.LocalDate today=java.time.LocalDate.now(BAGHDAD);
-        switch(matchWindow) {
-            case "today":return day.equals(today);
-            case "tomorrow":return day.equals(today.plusDays(1));
-            default:return !day.isBefore(today)&&!day.isAfter(today.plusDays(6));
-        }
-    }
-    private void periodChip(LinearLayout parent,String id,String label) {
-        TextView b=button(label,id.equals(matchWindow),()->{matchWindow=id;render();});
-        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(0,-2,1);
-        params.setMargins(dp(3),0,dp(3),0);
-        parent.addView(b,params);
-    }
-    private void drawMatches() {
-        masthead("الرياضة");
-        banner();
-        heading("مباريات الأسبوع");
-        java.time.LocalDate today=java.time.LocalDate.now(BAGHDAD);
-        String period=today.format(DateTimeFormatter.ofPattern("d MMM",new Locale("ar","IQ")))+
-                " — "+today.plusDays(6).format(DateTimeFormatter.ofPattern("d MMM yyyy",new Locale("ar","IQ")));
-        TextView periodText=muted("من "+period+"  •  بتوقيت بغداد",13);
-        periodText.setGravity(Gravity.CENTER);
-        add(container,periodText);
-        gap(container,13);
-        LinearLayout periods=row();
-        periodChip(periods,"week","الأسبوع");
-        periodChip(periods,"today","اليوم");
-        periodChip(periods,"tomorrow","غداً");
-        add(container,periods);
-        gap(container,16);
-
-        HorizontalScrollView scroll=new HorizontalScrollView(this);
-        scroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout filter=row();
-        scroll.addView(filter);
-        add(container,scroll);
-        addChip(filter,"all","كل البطولات");
-        JSONArray leagues=items("competitions");
-        for(int i=0;i<leagues.length();i++){
-            JSONObject lg=at(leagues,i);
-            addChip(filter,lg.optString("id"),lg.optString("name"));
-        }
-        gap(container,12);
-        String status=feed.optString("sports_status","");
-        if("partial".equals(status)) note(feed.optString("sports_error","تغطية المباريات غير مكتملة لبعض الدوريات."));
-        if("error".equals(status) || "not_configured".equals(status))
-            note("تعذر تحديث نتائج بعض البطولات؛ لا تعني القائمة الخالية عدم وجود مباريات.");
-        if("iraq".equals(competition)||"all".equals(competition)){
-            note("مواعيد الدوري العراقي من المصادر المتاحة؛ راجع موقع الدوري الرسمي عند تغيّر جدول المباريات.");
-        }
-
-        JSONArray matches=items("matches");
-        int shown=0;
-        String lastDate="";
-        for(int i=0;i<matches.length();i++) {
-            JSONObject match=at(matches,i);
-            if(!"all".equals(competition) && !competition.equals(match.optString("competition_id")))continue;
-            if(!matchInSelectedWindow(match))continue;
-            java.time.LocalDate matchDate=matchDay(match.optString("kickoff",""));
-            String dateId=matchDate.toString();
-            if(!dateId.equals(lastDate)){
-                TextView group=text("✦  "+matchDayTitle(matchDate),17,true);
-                group.setPadding(dp(2),dp(11),dp(2),dp(7));
-                add(container,group);
-                rule(container);
-                lastDate=dateId;
-            }
-            drawMatch(container,match);
-            shown++;
-        }
-        if(shown==0)note("لا توجد مباريات مؤكدة ضمن الفترة والبطولة المختارتين في المصادر المتاحة.");
-        add(container,muted("المواعيد قابلة للتغيير، وتُحدّث من المصادر كل ساعة تقريباً. لا تُنشأ مباريات تقديرية.",12));
-    }
-    private void addChip(LinearLayout holder,String id,String name) {
-        TextView b=button(name,id.equals(competition),()->{competition=id;render();});
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-2);
-        p.setMargins(dp(4),0,dp(4),0);
-        holder.addView(b,p);
-    }
-    private String arabicTeam(String name) {
-        String lower=name.toLowerCase(Locale.ROOT).trim();
-        switch(lower){
-            case "al karma":case "al-karma":case "al karma sc":return "الكرمة";
-            case "duhok":return "دهوك";
-            case "karbala":case "karbalaa":return "كربلاء";
-            case "al talaba":case "talaba":return "الطلبة";
-            case "al karkh":case "al-karkh":return "الكرخ";
-            case "al gharraf":case "al gharraf sc":return "الغراف";
-            case "arbil":case "erbil":return "أربيل";
-            case "ghaz al shamal":return "غاز الشمال";
-            case "al naft maysan":case "naft maysan":case "naft missan":return "نفط ميسان";
-            case "zakho":return "زاخو";
-            case "al zawraa":case "al-zawraa":return "الزوراء";
-            case "diyala":return "ديالى";
-            case "al shorta":case "al-shorta":case "shorta":return "الشرطة";
-            case "newroz":case "newroz sc":return "نوروز";
-            case "villarreal":return "فياريال";
-            case "espanyol":return "إسبانيول";
-            case "liverpool":return "ليفربول";
-            case "arsenal":return "أرسنال";
-            case "chelsea":return "تشيلسي";
-            case "barcelona":return "برشلونة";
-            case "real madrid":return "ريال مدريد";
-            default:return name;
-        }
-    }
-    private void drawMatch(LinearLayout parent,JSONObject match) {
-        LinearLayout section=column();
-        LinearLayout header=row();
-        TextView lg=muted("✦ "+match.optString("league","بطولة"),12);
-        space(header,lg,1);
-        String source=match.optString("provider","");
-        TextView sourceTag=muted(source.contains("دوري نجوم")?"جدول مؤكد":"",10);
-        sourceTag.setGravity(Gravity.END);
-        space(header,sourceTag,1);
-        add(section,header);
-        rule(section);
-        LinearLayout teams=row();
-        String first=arabicTeam(match.optString("home",""));
-        String second=arabicTeam(match.optString("away",""));
-        TextView home=text(first,15,true);
-        home.setGravity(Gravity.CENTER);
-        TextView away=text(second,15,true);
-        away.setGravity(Gravity.CENTER);
-        String status=match.optString("status","NS");
-        boolean scored=!match.isNull("home_goals")&&!match.isNull("away_goals");
-        String middle=scored
-                ?match.optInt("home_goals")+" - "+match.optInt("away_goals")
-                :matchClock(match.optString("kickoff",""));
-        TextView middleView=text(middle,15,true);
-        middleView.setGravity(Gravity.CENTER);
-        middleView.setTextColor(ACCENT);
-        space(teams,home,1.1f);
-        space(teams,middleView,0.9f);
-        space(teams,away,1.1f);
-        add(section,teams);
-        gap(section,8);
-        String label="NS".equals(status)?"لم تبدأ":
-                "FT".equals(status)?"انتهت":"LIVE".equals(status)?"مباشر":
-                "PST".equals(status)?"مؤجلة":status;
-        TextView caption=muted(label+"   •   توقيت بغداد",11);
-        caption.setGravity(Gravity.CENTER);
-        add(section,caption);
-        card(parent,section);
-    }
-    private void drawReport() {
-        masthead("التقرير الساعي");
-        banner();
-        heading("موجز الساعة");
-        TextView updated=muted("آخر تحديث: "+stamp(feed.optString("generated_at","")),13);
-        updated.setGravity(Gravity.CENTER);
-        add(container,updated);
-        gap(container,12);
-        JSONArray digest=items("digest");
-        add(container,button("▶ استمع إلى العناوين",false,()->readReport(digest)));
-        gap(container,12);
-        for(int i=0;i<digest.length();i++) {
-            JSONObject story=at(digest,i);
-            if(!isArabic(story.optString("headline","")))continue;
-            LinearLayout line=column();
-            add(line,text(String.format(Locale.US,"%02d",i+1)+"   "+story.optString("headline",""),16,true));
-            gap(line,5);
-            add(line,muted(story.optString("source","")+"  •  "+story.optString("category",""),12));
-            String link=story.optString("url","");
-            if(link.startsWith("https://"))line.setOnClickListener(v->openLink(link));
-            card(container,line);
-        }
-        if(digest.length()==0)note("لا تتوفر عناوين عربية للتقرير في الوقت الحالي.");
-        add(container,muted("هذه خلاصة للعناوين المنشورة لدى المصادر الأصلية، وليست تحليلاً مستقلاً للأحداث.",12));
-    }
-    private void readReport(JSONArray digest) {
-        StringBuilder script=new StringBuilder();
-        for(int i=0;i<digest.length();i++)script.append(at(digest,i).optString("headline")).append(". ");
-        if(script.length()==0)return;
-        if(speaker!=null) {speaker.stop();speaker.shutdown();}
-        speaker=new TextToSpeech(this,status->{
-            if(status==TextToSpeech.SUCCESS && speaker!=null) {
-                speaker.setLanguage(new Locale("ar"));
-                speaker.speak(script.toString(),TextToSpeech.QUEUE_FLUSH,null,"worldpulse-digest");
-            }else Toast.makeText(this,"تعذر تشغيل القراءة الصوتية",Toast.LENGTH_SHORT).show();
-        });
-    }
-    private void drawFavorites() {
-        masthead("الأخبار المحفوظة");
-        int count=0;
-        JSONArray articles=items("news");
-        for(int i=0;i<articles.length();i++) {
-            JSONObject article=at(articles,i);
-            if(!favorites.contains(article.optString("id")) || !isArabic(article.optString("title","")))continue;
-            storyRow(container,article,++count,false);
-        }
-        if(count==0)note("لا توجد عناوين محفوظة ضمن الأخبار الحالية. يتم حفظ معرّفات المفضلة فقط لتقليل التخزين.");
-    }
-    private void drawMore() {
-        masthead("الإعدادات");
-        banner();
-        heading("النسخة الورقية الرقمية");
-        add(container,button("↻ تحديث الأخبار والمباريات",true,()->refresh(true)));
-        gap(container,12);
-        add(container,button("☆ الأخبار المفضلة ("+favorites.size()+")",false,()->{
-            favoritesPage=true;render();
-        }));
-        gap(container,12);
-        LinearLayout info=column();
-        add(info,text("WorldPulse — Android 1.1",17,true));
-        gap(info,10);
-        add(info,muted("هوية صحيفة كلاسيكية • ورق عاجي • حبر جوزي",14));
-        gap(info,8);
-        add(info,muted("• لا صور أو خلفيات صور داخل التطبيق.\n• لا تنزيل ملفات أخبار إلى التخزين.\n• تحفظ الإعدادات ومعرّفات المفضلة فقط.\n• تحديث الأخبار يتم على GitHub وليس على الهاتف.\n• يحتاج الإنترنت لجلب الأخبار الحقيقية.",14));
-        gap(info,8);
-        add(info,muted("آخر تحديث: "+stamp(feed.optString("generated_at","")),12));
-        card(container,info);
-        add(container,button("فتح المشروع على GitHub",false,()->
-            openLink("https://github.com/AbbasSabah97/Sport-News")));
-    }
-    private void refresh(boolean force) {
-        long now=System.currentTimeMillis();
-        if(loading || (!force && now-lastRefresh<240_000))return;
-        loading=true;
-        lastRefresh=now;
-        if(force)Toast.makeText(this,"جار تحديث البيانات...",Toast.LENGTH_SHORT).show();
-        client.fetch(new FeedClient.Callback() {
-            @Override public void loaded(JSONObject result) {
-                runOnUiThread(()->{
-                    loading=false;error=null;dataReady=true;
-                    feed=result;
-                    openedArticle=null;
-                    render();
-                });
-            }
-            @Override public void failed(String message) {
-                runOnUiThread(()->{
-                    loading=false;error=message;dataReady=false;
-                    render();
-                });
-            }
-        });
-    }
-    @Override public void onBackPressed() {
-        if(openedArticle!=null) {openedArticle=null;render();}
-        else if(favoritesPage){favoritesPage=false;render();}
-        else if(tab!=0){tab=0;render();}
-        else super.onBackPressed();
-    }
-    @Override protected void onDestroy() {
-        client.close();
-        if(speaker!=null){speaker.stop();speaker.shutdown();}
-        super.onDestroy();
-    }
+  }
+  void settings(){
+    toolbar("الإعدادات");heading("حول التطبيق",null,null);
+    LinearLayout c=col();add(c,txt("WorldPulse Football — Android 2.0",17,true,NAVY));gap(c,9);
+    add(c,txt("البرتقالي والنيلي • تصميم أصلي لعشاق كرة القدم",13,false,MUTED));gap(c,12);
+    add(c,txt("7 بطولات. المواعيد والنتائج حقيقية عند توفرها. لا يتم اختلاق الترتيب أو الإحصاءات المفقودة.",13,false,NAVY));gap(c,11);
+    add(c,txt("البيانات تُحدّث على GitHub كل ساعة تقريباً. تُحفظ أسماء الفرق المتابعة فقط على الهاتف، ولا يتم تحميل صور.",12,false,MUTED));card(page,c);
+    add(page,pill(loading?"جارٍ التحديث...":"↻ تحديث المباريات",false,()->refresh()));gap(page,13);
+    add(page,pill("المشروع على GitHub ↗",false,()->open("https://github.com/AbbasSabah97/Sport-News")));
+  }
+  void toggle(String s){
+    if(s.isEmpty())return;
+    if(following.contains(s))following.remove(s);else if(following.size()<60)following.add(s);
+    prefs.edit().putStringSet("teams",new HashSet<>(following)).apply();render();
+  }
+  void open(String url){
+    if(url==null||!url.startsWith("https://"))return;
+    try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));}
+    catch(Exception e){Toast.makeText(this,"تعذر فتح الرابط",Toast.LENGTH_SHORT).show();}
+  }
+  void refresh(){
+    if(loading)return;loading=true;
+    client.fetch(new FeedClient.Callback(){
+      @Override public void loaded(JSONObject response){
+        runOnUiThread(()->{data=response;online=true;error=null;loading=false;render();});
+      }
+      @Override public void failed(String msg){
+        runOnUiThread(()->{error=msg;loading=false;render();});
+      }
+    });
+  }
+  @Override public void onBackPressed(){
+    if(match!=null){match=null;render();}
+    else if(teamPage!=null){teamPage=null;render();}
+    else if(leaguePage!=null){leaguePage=null;tab=2;render();}
+    else if(tab!=0){tab=0;render();}
+    else super.onBackPressed();
+  }
+  @Override protected void onDestroy(){client.close();super.onDestroy();}
 }

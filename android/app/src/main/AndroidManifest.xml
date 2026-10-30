@@ -5,7 +5,7 @@
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:label="WorldPulse"
+        android:label="WorldPulse Football"
         android:icon="@drawable/ic_newspaper"
         android:theme="@style/WorldPulseTheme"
         android:usesCleartextTraffic="false"
