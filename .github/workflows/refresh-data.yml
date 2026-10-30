@@ -30,14 +30,25 @@ jobs:
           API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
           GOOGLE_TRANSLATE_API_KEY: ${{ secrets.GOOGLE_TRANSLATE_API_KEY }}
         run: python -m backend.collector
-      - name: Publish feed
+      - name: Publish feed (conflict-safe)
         run: |
+          set -e
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add docs/feed.json
-          if ! git diff --cached --quiet; then
-            git commit -m 'data: refresh news and football [skip ci]'
+          cp docs/feed.json /tmp/worldpulse-feed.json
+          for attempt in 1 2 3; do
             git fetch origin main
-            git rebase origin/main
-            git push origin HEAD:main
-          fi
+            git reset --hard origin/main
+            cp /tmp/worldpulse-feed.json docs/feed.json
+            git add docs/feed.json
+            if git diff --cached --quiet; then
+              echo "Feed unchanged"
+              exit 0
+            fi
+            git commit -m 'data: refresh news and football [skip ci]'
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Another update arrived; retrying publish"
+          done
+          exit 1
