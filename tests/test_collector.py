@@ -83,6 +83,23 @@ class CollectorTests(unittest.TestCase):
         items=[{"kickoff":"2026-10-31T13:30:00+00:00"},{"kickoff":"2026-11-08T13:30:00+00:00"}]
         found=within_week(items,dt.date(2026,10,30),dt.date(2026,11,5))
         self.assertEqual(len(found),1)
+    def test_real_standings_parser(self):
+        from backend.standings import parse_standings
+        data={"children":[{"standings":{"entries":[
+            {"team":{"displayName":"Club A"},"stats":[
+                {"name":"points","value":21},{"name":"gamesPlayed","value":10},
+                {"name":"wins","value":6},{"name":"ties","value":3},
+                {"name":"losses","value":1},{"name":"rank","value":1}]}
+        ]}}]}
+        rows=parse_standings(data,"england")
+        self.assertEqual(rows[0]["points"],21)
+        self.assertEqual(rows[0]["played"],10)
+        self.assertEqual(rows[0]["rank"],1)
+    def test_never_invent_standings(self):
+        from backend.standings import parse_standings
+        self.assertEqual(parse_standings({},"iraq"),[])
+        self.assertEqual(parse_standings({"standings":{"entries":[
+            {"team":{"name":"Club B"},"stats":[]}]}},"iraq"),[])
     def test_competitions(self):
         self.assertEqual(len(COMPETITIONS),7)
         self.assertEqual(league_code({"id":39,"name":"Premier League","country":"England"}),"england")

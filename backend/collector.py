@@ -205,13 +205,15 @@ def build(now=None):
     now=now or dt.datetime.now(UTC)
     stories,digest,warnings,counts=news(now)
     matches,status,sports_error,checked=fixtures(now)
+    from .standings import get_standings
+    tables=get_standings()
     return dict(schema_version=1,generated_at=now.isoformat(),timezone="Asia/Baghdad",
         local_date=now.astimezone(BAGHDAD).date().isoformat(),news_status="ok" if stories else "unavailable",
         news=stories,digest=digest,digest_note="عناوين عربية موجزة؛ افتح رابط المصدر للاطلاع على التفاصيل.",
         category_counts=counts,
         source_warnings=warnings,sports_status=status,sports_error=sports_error,
         competitions=[dict(id=k,name=v) for k,v in COMPETITIONS],matches=matches,
-        sports_checked=checked,week_start=now.astimezone(BAGHDAD).date().isoformat(),
+        sports_checked=checked,standings=tables,week_start=now.astimezone(BAGHDAD).date().isoformat(),
         week_end=(now.astimezone(BAGHDAD).date()+dt.timedelta(days=6)).isoformat())
 
 def main():
