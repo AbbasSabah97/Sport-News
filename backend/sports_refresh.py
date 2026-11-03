@@ -34,7 +34,9 @@ def build(now=None,fetcher=None):
     fetcher=fetcher or weekly_fixtures
     matches,status,message,checked=fetcher(now)
     begin,end=week_window(now)
+    from .match_details import enrich
     matches=sanitize_matches(matches)
+    matches=enrich(matches)
     return {
         "schema_version":1,
         "generated_at":now.isoformat(),
