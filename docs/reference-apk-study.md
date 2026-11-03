@@ -29,3 +29,23 @@ Push notifications الحقيقية، xG/خرائط التسديد، تعليق�
 
 مصادر عامة: https://firebase.google.com/docs/cloud-messaging/android-message-priority
 و https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
+
+
+## إعادة فحص ملف base(2).apk — 4 نوفمبر 2026
+تمت مراجعة ملف APK المرفق مباشرة من حاوية الملفات. وجدنا **3844 مدخلاً في الأرشيف و4 ملفات DEX**، وتكررت العلامات التالية داخل DEX:
+- `com/fotmob`, `FirebaseMessagingService`, `PushMessagingService`, `WorkManager`
+- `MatchMaintenanceWorker`, `LiveScoreAppWidgetUpdateWorker`
+- `MatchEvents`, `MatchFacts`, `Lineup`, `ShotMap`, `Head2Head`
+- `okhttp3`, `WebSocket` ضمن المكتبات المضمّنة.
+
+هذه **قرائن بنيوية مؤكدة** وليست إثباتاً بأن فوت موب يستعمل WebSocket لتحديث كل نتيجة، أو أنه يتصل بالخادم كل عدد محدد من الثواني؛ ذلك يتطلب قياساً ديناميكياً مصرحاً به.
+
+### تطبيق أسلوب مستقل مناسب
+- النتائج والأحداث: تحديث أكثر تكراراً عند تشغيل المباريات؛ مصدر API-Football الرسمي ينصح طلباً كل دقيقة للمباريات الحية، وحسب حدود الاشتراك.
+- ترتيب الدوريات: تحديث ساعي من مصدره بدلاً من الاستعلام كل دقيقة. API-Football يدعم البحث عن الدوري العراقي الحالي، مع التحقق من التغطية.
+- متصفح المباريات في Android يقرأ أحدث ملف خادم ويتبع دورة حياة الشاشة، ولا يحتفظ بنتائج في تخزين الجهاز؛ يتوقف الفحص عندما ينتقل التطبيق للخلفية.
+- الأهداف/البطاقات والتشكيلة تظهر فقط إذا وفرها المصدر فعلاً.
+- حفظ موضع التمرير عند تحديث الشاشة لمنع اهتزاز الواجهة.
+- الوضع النهاري والليلي يستخدمان ألوان Adobe نفسها بأدوار دلالية مناسبة للتباين.
+
+مرجع تحديثات مزود البيانات: https://www.api-football.com/documentation_v3
