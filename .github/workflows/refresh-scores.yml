@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'backend/sports_refresh.py'
+      - 'backend/**'
+      - 'tests/**'
       - '.github/workflows/refresh-scores.yml'
   schedule:
     - cron: '3/5 * * * *'
