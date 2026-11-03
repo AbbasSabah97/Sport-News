@@ -14,6 +14,16 @@ class SportsRefreshTest(unittest.TestCase):
         self.assertEqual(data["live_count"],1)
         self.assertEqual(data["week_start"],"2026-11-04")
         self.assertEqual(data["week_end"],"2026-11-10")
+    def test_preserves_live_match_details(self):
+        item={"id":"apifootball-15","competition_id":"iraq",
+              "kickoff":"2026-11-04T19:00:00+03:00",
+              "events":[{"minute":"56","type":"Goal","team":"الزوراء"}],
+              "statistics":{"Ball Possession":"55%  |  45%"},
+              "lineups":["الزوراء 4-3-3","حارس المرمى"]}
+        rows=sanitize_matches([item])
+        self.assertEqual(len(rows[0]["events"]),1)
+        self.assertEqual(rows[0]["statistics"]["Ball Possession"],"55%  |  45%")
+        self.assertEqual(len(rows[0]["lineups"]),2)
     def test_no_fake_score(self):
         rows=sanitize_matches([{"id":"z","competition_id":"worldcup","kickoff":"2026-11-07T17:00:00Z","home_goals":None,"away_goals":None}])
         self.assertIsNone(rows[0]["home_goals"])

@@ -24,7 +24,8 @@ def sanitize_matches(matches):
         ids.add(identifier)
         row={k:x.get(k) for k in (
             "id","competition_id","league","home","away","home_goals",
-            "away_goals","kickoff","status","provider","source_url"
+            "away_goals","kickoff","status","provider","source_url",
+            "events","statistics","lineups","schedule_verified_at"
         ) if k in x}
         result.append(row)
     return sorted(result,key=lambda x:x.get("kickoff") or "")
@@ -61,7 +62,7 @@ def publish(path=Path("docs/fixtures.json")):
     except (OSError,ValueError,TypeError,KeyError) as exc:
         data=build(now,fetcher=lambda now:([],"error","تعذر تحديث بيانات المباريات؛ حاول لاحقاً.",[]))
     # Never substitute a previous week's fixtures.
-    if not data["matches"] and old.get("week_start")==data["week_start"] and old.get("matches"):
+    if data["sports_status"]=="error" and not data["matches"] and old.get("week_start")==data["week_start"] and old.get("matches"):
         data["matches"]=sanitize_matches(old["matches"])
         data["sports_status"]="stale"
         data["sports_error"]="تأخر المصدر؛ المعروض آخر جدول محفوظ مع توضيح وقت التحديث."

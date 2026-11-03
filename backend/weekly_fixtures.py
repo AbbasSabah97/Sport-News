@@ -162,13 +162,21 @@ def fallback_week(now):
                 pass
     results=within_week(results,begin,end)
     known=official_iraq_snapshot(now)+round13_iraq_snapshot(now)
-    # If official verified schedule exists prefer it over missing/unconfirmed
-    # Iraqi data; exclude same-date conflicting listings from other providers.
+    # A static official fixture is a fallback for *missing* matches only.
+    # Never let a scheduled NS snapshot overwrite a live score or final result.
+    # Provider naming may vary; compare Baghdad local date and team tokens.
     if known:
-        verified_days={local_day(row["kickoff"]) for row in known}
-        results=[r for r in results if r["competition_id"]!="iraq"
-                 or local_day(r["kickoff"]) not in verified_days]
-        results.extend(known)
+        def normalize_team(value):
+            return "".join(ch for ch in str(value).casefold() if ch.isalnum())
+        for row in known:
+            found=any(
+                x.get("competition_id")=="iraq"
+                and local_day(x["kickoff"])==local_day(row["kickoff"])
+                and (normalize_team(x.get("home"))==normalize_team(row["home"])
+                     or normalize_team(x.get("away"))==normalize_team(row["away"]))
+                for x in results
+            )
+            if not found: results.append(row)
         responded.add("iraq")
     merged=merge_matches(results)
     message=None
