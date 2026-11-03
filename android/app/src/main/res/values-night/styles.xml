@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <style name="WorldPulseTheme" parent="android:style/Theme.Material.NoActionBar">
-    <item name="android:fontFamily">sans</item>
-    <item name="android:forceDarkAllowed">false</item>
-    <item name="android:windowLightNavigationBar">false</item>
-    <item name="android:windowLightStatusBar">false</item>
-    <item name="android:statusBarColor">#332425</item>
-    <item name="android:navigationBarColor">#332E2E</item>
-    <item name="android:colorAccent">#B83742</item>
-    <item name="android:windowBackground">#332425</item>
-  </style>
+ <style name="WorldPulseTheme" parent="android:style/Theme.Material.NoActionBar">
+  <item name="android:fontFamily">sans</item>
+  <item name="android:forceDarkAllowed">false</item>
+  <item name="android:windowLightNavigationBar">false</item>
+  <item name="android:windowLightStatusBar">false</item>
+  <item name="android:statusBarColor">#13222D</item>
+  <item name="android:navigationBarColor">#1D333B</item>
+  <item name="android:colorAccent">#60A65F</item>
+  <item name="android:windowBackground">#13222D</item>
+ </style>
 </resources>
