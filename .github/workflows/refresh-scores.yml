@@ -1,6 +1,11 @@
 name: Refresh football scores (5-min best effort)
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/sports_refresh.py'
+      - '.github/workflows/refresh-scores.yml'
   schedule:
     - cron: '3/5 * * * *'
 permissions:

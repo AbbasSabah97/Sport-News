@@ -1,13 +1,23 @@
-# WorldPulse Football - Android
+# WorldPulse Football — Android v2.1
 
-Android app with an original modern football-focused interface, inspired by the usability of live score apps, not copied proprietary FotMob branding or graphic assets.
+تطبيق مستقل بنتائج ومواعيد **7 بطولات فقط**: دوري نجوم العراق، LaLiga، الدوري الإنجليزي، دوري أبطال أوروبا، كأس العالم، كأس أمم أوروبا، وكأس آسيا.
 
-Colors: orange #FF7730, indigo #1B2B5B, light background #F8F9FD. Arabic RTL layout and stable light theme even in Android Dark Mode.
+## دراسة APK المرجعي (تحليل ثابت)
+تم فحص ملف APK المرجعي الموجود في المحادثة. ظهرت مكونات مثل FirebaseMessagingService وWorkManager وMatchMaintenanceWorker وLiveScoreAppWidgetUpdateWorker ونماذج أحداث المباراة والـLineups وShotMap. وجود دعم OkHttp WebSocket في الحزمة لا يثبت استخدامه مباشرة في بث النتائج؛ لم يُنفّذ تحليل اتصال وقت التشغيل ولم تُنسخ واجهات التطبيق الخاصة أو شيفرته أو أسراره. انظر تقرير التحليل في `docs/reference-apk-study.md`.
 
-Screens: Home, seven-day Matches, seven Competitions, Match Details, real Standings when available, Team Following, and Settings. Includes Iraqi Stars League, LaLiga, Premier League, UEFA Champions League, FIFA World Cup, UEFA EURO, AFC Asian Cup.
+## التصميم
+لوحة Adobe: `#B83742`, `#854248`, `#52393B`, `#332E2E`, `#332425`.
+- النهار: خلفيات فاتحة مائلة للوردي، نص داكن، أزرار عنابية.
+- الليل: خلفية #332425، بطاقات #332E2E ونص فاتح واضح، وفق إعداد Android.
+- بقاء دعم RTL والعرض الخفيف دون تنزيل صور.
 
-Data: hourly docs/feed.json from GitHub Actions. ESPN and TheSportsDB endpoints can be incomplete; optional API_FOOTBALL_KEY may improve coverage. Live statistics, lineups and standings are displayed only when sourced. The verified Iraqi Stars League snapshot from October 30, 2026 is time-limited.
+## تحديث النتائج
+- `backend/sports_refresh.py` ينشئ `docs/fixtures.json` بجدول البطولات السبع ووقت آخر تحقق.
+- `.github/workflows/refresh-scores.yml` يستهدف تشغيلًا كل خمس دقائق تقريباً، لكن قد تتأخر أو تفوت جدولة GitHub.
+- أثناء فتح التطبيق يجلب الهاتف أحدث `fixtures.json` كل دقيقة تقريباً. لا يعمل تحديث مستمر أثناء غلقه أو في الخلفية.
+- تعذّر مصدر المباريات لا ينشئ نتائج خيالية، بل يحافظ مؤقتاً على آخر جدول ضمن الأسبوع نفسه مع حالة `stale`.
+- `docs/feed.json` يبقى مصدر الأخبار العربية والترتيب الساعي.
+- *هذه ليست بعد خدمة لحظية ثانية بثانية ولا Push notifications*. لتوفير تنبيهات الأهداف الفورية، يلزم مزود بيانات مباشر مرخّص وخادم دائم وFCM، مع موافقة المستخدم على التنبيهات.
 
-No downloaded images or historical feed files stored on-device. Only followed team names are saved in SharedPreferences.
-
-Build APK with .github/workflows/build-android.yml. Debug-signed APK is for testing, not Play Store publishing. Minimum Android 8.0.
+## البناء
+GitHub Actions `Build Android APK` يبني APK تجريبية قابلة للتثبيت (Android 8+). البيانات من مصادر عامة بديلة (ESPN وTheSportsDB) أو API-Football في حال توافر مفتاح صالح داخل GitHub Secrets. تغطية الدوري العراقي من المصادر المجانية لا يمكن ضمانها.
