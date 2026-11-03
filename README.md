@@ -1,4 +1,4 @@
-# WorldPulse Football — Android v2.3.0
+# WorldPulse Football — Android v2.4.0
 
 تطبيق عربي خفيف لمباريات ونتائج **7 بطولات فقط**: دوري نجوم العراق، LaLiga، الدوري الإنجليزي الممتاز، دوري أبطال أوروبا، كأس العالم، كأس أمم أوروبا، كأس أمم آسيا.
 
@@ -27,3 +27,10 @@
 - https://developer.android.com/develop/ui/views/theming/darktheme
 - https://www.api-football.com/documentation_v3
 - https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
+
+## مركز المباراة المطور 2.4
+- التشكيلة مع الخطة والمدرب والبدلاء، وأحداث التسجيل والبطاقات والتبديلات وصانعي الأهداف.
+- الغيابات والإيقافات، وحالات الشك بالمشاركة، والمواجهات المباشرة، وتقييمات اللاعبين عندما يسمح مزود البيانات بذلك.
+- تخزين معلومات الغيابات والمواجهات على خادم GitHub دورياً لتقليل استهلاك حصة API، دون إضافتها للتخزين المحلي للهاتف.
+- تصل النتيجة الجديدة أيضاً إلى صفحة تفاصيل المباراة المفتوحة.
+- [دراسة مفصلة لآلية FotMob والنظام المقابل](docs/fotmob-system-and-match-center.md).
