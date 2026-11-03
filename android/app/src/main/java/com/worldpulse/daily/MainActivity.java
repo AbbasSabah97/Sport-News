@@ -492,58 +492,251 @@ public class MainActivity extends Activity {
       r.setOnClickListener(v->{teamPage=name;render();});card(page,r);
     }
   }
+  void labelSection(String title){
+    gap(page,6);heading(title,null,null);
+  }
+  void infoEmpty(String title,String reason){
+    blank(title+" — "+reason);
+  }
+  void renderEventTimeline(JSONArray events){
+    if(events==null||events.length()==0){
+      infoEmpty("أحداث المباراة","لم يرسل مزود النتائج أحداثاً لهذه المباراة.");return;
+    }
+    for(int i=0;i<events.length();i++){
+      JSONObject e=at(events,i);
+      String kind=e.optString("type","");
+      String symbol=kind.equalsIgnoreCase("Goal")?"⚽":
+          kind.equalsIgnoreCase("Card")?"▣":
+          kind.equalsIgnoreCase("Subst")?"⇄":
+          kind.equalsIgnoreCase("Var")?"▣":"•";
+      LinearLayout c=row();
+      TextView minute=txt(e.optString("minute","—")+"' ",17,true,ORANGE);
+      minute.setGravity(Gravity.CENTER);
+      minute.setWidth(dp(66));c.addView(minute);
+      LinearLayout desc=col();
+      String who=e.optString("player","").trim();
+      String event=e.optString("detail","");
+      add(desc,txt(symbol+"  "+team(e.optString("team"))+
+          (who.isEmpty()?"":"  •  "+who),14,true,NAVY));
+      if(!event.isEmpty())add(desc,txt(event,12,false,MUTED));
+      String assist=e.optString("assist","");
+      if(!assist.isEmpty())add(desc,txt("صناعة الهدف: "+assist,12,false,MUTED));
+      wt(c,desc,1);card(page,c);
+    }
+  }
+  void renderStatBars(JSONObject stats){
+    if(stats==null||stats.length()==0){
+      infoEmpty("إحصاءات المباراة","لا تتوفر بيانات موثقة من المزود.");return;
+    }
+    Iterator<String> keys=stats.keys();
+    while(keys.hasNext()){
+      String key=keys.next();
+      String[] values=stats.optString(key,"").split("\\|",-1);
+      if(values.length!=2){detail(key,stats.optString(key));continue;}
+      String home=values[0].trim(),away=values[1].trim();
+      LinearLayout box=col();
+      TextView heading=txt(key,13,true,NAVY);
+      heading.setGravity(Gravity.CENTER);add(box,heading);gap(box,7);
+      LinearLayout totals=row();
+      TextView a=txt(home,14,true,NAVY);a.setGravity(Gravity.CENTER);
+      TextView b=txt(away,14,true,NAVY);b.setGravity(Gravity.CENTER);
+      wt(totals,a,1);wt(totals,b,1);add(box,totals);
+      try{
+        double n1=Double.parseDouble(home.replace("%",""));
+        double n2=Double.parseDouble(away.replace("%",""));
+        if(n1<0||n2<0||n1+n2<=0)throw new NumberFormatException();
+        LinearLayout bars=row();
+        View bar1=new View(this);bar1.setBackground(fill(ORANGE,6));
+        View bar2=new View(this);bar2.setBackground(fill(GREEN,6));
+        bars.addView(bar1,new LinearLayout.LayoutParams(0,dp(7),(float)Math.max(0.01,n1)));
+        bars.addView(bar2,new LinearLayout.LayoutParams(0,dp(7),(float)Math.max(0.01,n2)));
+        add(box,bars);
+      }catch(NumberFormatException ignored){}
+      card(page,box);
+    }
+    add(page,txt("الأرقام: الفريق الأول | الفريق الثاني، وفق تقرير المصدر.",11,false,MUTED));
+  }
+  void playerBadge(LinearLayout host,JSONObject p){
+    LinearLayout card=row();
+    String number=p.isNull("number")?"":p.optString("number");
+    TextView numberView=txt(number.isEmpty()?"•":number,15,true,darkMode?YELLOW:NAVY);
+    numberView.setGravity(Gravity.CENTER);
+    numberView.setBackground(fill(PALE,18));
+    LinearLayout.LayoutParams nb=new LinearLayout.LayoutParams(dp(38),dp(38));
+    nb.leftMargin=dp(12);card.addView(numberView,nb);
+    LinearLayout inner=col();
+    add(inner,txt(p.optString("name","—"),13,true,NAVY));
+    String details=p.optString("position","");
+    if(p.has("minutes"))details+="  •  "+p.optInt("minutes")+" دقيقة";
+    if(p.has("rating"))details+="  •  التقييم "+p.optString("rating");
+    if(!details.isEmpty())add(inner,txt(details.trim(),11,false,MUTED));
+    wt(card,inner,1);
+    if(p.has("goals")&&p.optInt("goals")>0)
+      card.addView(txt("⚽ "+p.optInt("goals"),12,true,GREEN));
+    if(host==page)card(page,card);
+    else card(host,card);
+  }
+  void renderPitch(LinearLayout host,JSONArray players){
+    if(players==null||players.length()==0)return;
+    LinearLayout pitch=col();
+    pitch.setPadding(dp(8),dp(14),dp(8),dp(14));
+    pitch.setBackground(gradient(Color.rgb(36,112,101),Color.rgb(44,91,97),18));
+    for(int grid=1;grid<=5;grid++){
+      LinearLayout line=row();line.setGravity(Gravity.CENTER);
+      int count=0;
+      for(int i=0;i<players.length();i++){
+        JSONObject p=at(players,i);
+        String pos=p.optString("grid","");
+        if(!pos.startsWith(grid+":"))continue;
+        LinearLayout figure=col();figure.setGravity(Gravity.CENTER);
+        TextView shirt=txt(p.optString("number","•"),14,true,YELLOW);
+        shirt.setGravity(Gravity.CENTER);add(figure,shirt);
+        TextView name=txt(p.optString("name",""),10,true,Color.WHITE);
+        name.setMaxLines(2);name.setGravity(Gravity.CENTER);add(figure,name);
+        line.addView(figure,new LinearLayout.LayoutParams(0,dp(65),1));count++;
+      }
+      if(count>0){add(pitch,line);gap(pitch,7);}
+    }
+    add(host,pitch);gap(host,10);
+  }
+  void renderLineups(){
+    JSONArray sides=match.optJSONArray("lineup_details");
+    if(sides!=null&&sides.length()>0){
+      for(int i=0;i<sides.length();i++){
+        JSONObject side=at(sides,i);
+        labelSection(team(side.optString("team","الفريق")));
+        String formation=side.optString("formation","");
+        if(!formation.isEmpty())detail("الخطة",formation);
+        String coach=side.optString("coach","");
+        if(!coach.isEmpty())detail("المدرب",coach);
+        JSONArray starters=side.optJSONArray("starters");
+        if(starters!=null&&starters.length()>0){
+          labelSection("التشكيلة الأساسية");
+          renderPitch(page,starters);
+          for(int n=0;n<starters.length();n++)
+            playerBadge(page,at(starters,n));
+        }
+        JSONArray subs=side.optJSONArray("substitutes");
+        if(subs!=null&&subs.length()>0){
+          labelSection("البدلاء");
+          for(int n=0;n<subs.length();n++)
+            playerBadge(page,at(subs,n));
+        }
+      }
+      return;
+    }
+    JSONArray old=match.optJSONArray("lineups");
+    if(old!=null&&old.length()>0){
+      for(int i=0;i<old.length();i++)detail("اللاعب "+(i+1),old.optString(i));
+    }else infoEmpty("التشكيلة","لم يعلن المصدر أسماء اللاعبين أو خطة اللعب بعد.");
+  }
+  void renderAbsences(){
+    JSONArray injuries=match.optJSONArray("injuries");
+    if(injuries==null||injuries.length()==0){
+      infoEmpty("الغيابات","لم تصل معلومات موثوقة عن إصابات أو إيقافات هذه المباراة؛ لا يعني ذلك عدم وجود غائبين.");
+      return;
+    }
+    for(int i=0;i<injuries.length();i++){
+      JSONObject p=at(injuries,i);
+      LinearLayout box=col();
+      add(box,txt("✚  "+p.optString("player",""),15,true,NAVY));
+      gap(box,6);
+      add(box,txt(team(p.optString("team",""))+"  •  "+
+          translateAbsence(p.optString("status")),12,true,ORANGE));
+      String reason=p.optString("reason","");
+      if(!reason.isEmpty())add(box,txt("السبب: "+reason,12,false,MUTED));
+      card(page,box);
+    }
+    add(page,txt("قد تكون بعض الحالات غير مؤكدة، ولا تُصنّف جميع الغيابات كإصابات.",11,false,MUTED));
+  }
+  String translateAbsence(String value){
+    if(value.equalsIgnoreCase("Questionable"))return "مشاركة غير مؤكدة";
+    if(value.equalsIgnoreCase("Missing Fixture"))return "خارج المباراة";
+    return value;
+  }
+  void renderPlayers(){
+    JSONArray players=match.optJSONArray("player_stats");
+    if(players==null||players.length()==0){
+      infoEmpty("تقييمات اللاعبين","المصدر لم يرسل إحصاءات فردية لهذه المباراة.");return;
+    }
+    String current="";
+    for(int i=0;i<players.length();i++){
+      JSONObject p=at(players,i);
+      String n=p.optString("team","");
+      if(!n.equals(current)){labelSection(team(n));current=n;}
+      playerBadge(page,p);
+    }
+  }
+  void renderHeadToHead(){
+    JSONArray h2h=match.optJSONArray("headtohead");
+    if(h2h==null||h2h.length()==0){
+      infoEmpty("المواجهات السابقة","المصدر لم يرسل سجلاً موثوقاً للمواجهات المباشرة.");
+      return;
+    }
+    for(int i=0;i<h2h.length();i++){
+      JSONObject row=at(h2h,i);LinearLayout box=col();
+      add(box,txt(team(row.optString("home"))+"   ×   "+team(row.optString("away")),14,true,NAVY));
+      gap(box,8);
+      String result=row.isNull("home_goals")||row.isNull("away_goals")?
+          "النتيجة غير متاحة":row.optInt("home_goals")+" - "+row.optInt("away_goals");
+      add(box,txt(result+"   •   "+date(local(row.optString("date"))),12,false,MUTED));
+      card(page,box);
+    }
+  }
   void matchPage(){
-    back("المباريات",()->{match=null;render();});toolbar(leagueName(match.optString("competition_id")));
-    LinearLayout hero=col();hero.setGravity(Gravity.CENTER);hero.setPadding(dp(16),dp(23),dp(16),dp(23));
+    back("المباريات",()->{match=null;render();});
+    toolbar(leagueName(match.optString("competition_id")));
+    LinearLayout hero=col();
+    hero.setGravity(Gravity.CENTER);
+    hero.setPadding(dp(17),dp(22),dp(17),dp(22));
     hero.setBackground(gradient(Color.rgb(43,61,84),Color.rgb(44,91,97),24));
-    TextView teams=txt(team(match.optString("home"))+"  ×  "+team(match.optString("away")),17,true,Color.WHITE);
-    teams.setGravity(Gravity.CENTER);add(hero,teams);gap(hero,12);
-    TextView sc=txt(score(match),35,true,Color.WHITE);sc.setGravity(Gravity.CENTER);add(hero,sc);gap(hero,9);
-    TextView st=txt(status(match.optString("status"))+" • "+date(local(match.optString("kickoff"))),12,false,Color.WHITE);
-    st.setGravity(Gravity.CENTER);add(hero,st);add(page,hero);gap(page,17);
-    LinearLayout r=row();String[] labels={"الملخص","الأحداث","الإحصاءات","التشكيلة"};
-    for(int i=0;i<labels.length;i++){final int n=i;wt(r,pill(labels[i],detailTab==i,()->{detailTab=n;render();}),1);}
-    add(page,r);gap(page,16);
+    TextView teams=txt(team(match.optString("home"))+"  ×  "+
+        team(match.optString("away")),17,true,Color.WHITE);
+    teams.setGravity(Gravity.CENTER);add(hero,teams);gap(hero,13);
+    TextView sc=txt(score(match),36,true,Color.WHITE);
+    sc.setGravity(Gravity.CENTER);add(hero,sc);gap(hero,10);
+    TextView statusLine=txt(status(match.optString("status","NS"))+"  •  "+
+        date(local(match.optString("kickoff"))),12,false,Color.WHITE);
+    statusLine.setGravity(Gravity.CENTER);add(hero,statusLine);
+    add(page,hero);gap(page,14);
+    TextView provider=txt("المصدر: "+match.optString("provider","غير معروف"),11,false,MUTED);
+    add(page,provider);gap(page,14);
+    String[] labels={"الملخص","الأحداث","الإحصاءات","التشكيلة",
+                     "الغيابات","اللاعبون","المواجهات"};
+    LinearLayout options=row();
+    for(int i=0;i<labels.length;i++){
+      final int n=i;
+      chip(options,labels[i],detailTab==i,()->{detailTab=n;render();});
+    }
+    scrollChips(options);
     if(detailTab==0){
+      labelSection("معلومات المباراة");
       detail("الموعد",time(match.optString("kickoff"))+" بتوقيت بغداد");
       detail("البطولة",leagueName(match.optString("competition_id")));
-      detail("الحالة",status(match.optString("status")));
-      detail("المصدر",match.optString("provider","غير محدد"));
-      LinearLayout follows=row();
-      String h=match.optString("home"),a=match.optString("away");
-      wt(follows,pill("☆ "+team(h),following.contains(h),()->toggle(h)),1);
-      wt(follows,pill("☆ "+team(a),following.contains(a),()->toggle(a)),1);
-      add(page,follows);gap(page,13);
-      String link=match.optString("source_url");
-      if(link.startsWith("https://"))add(page,pill("رابط المصدر الرسمي ↗",false,()->open(link)));
-    }else if(detailTab==1){
-      JSONArray events=match.optJSONArray("events");
-      if(events==null||events.length()==0)blank("أحداث المباراة غير متاحة حالياً. تُعرض الأهداف والبطاقات عند وصولها من المزود.");
-      else for(int i=0;i<events.length();i++){
-        JSONObject e=at(events,i);
-        String type=e.optString("type","");
-        String symbol=type.equals("Goal")?"⚽":type.equals("Card")?"▣":type.equals("subst")?"↔":"•";
-        String who=e.optString("player","");
-        String text=symbol+" "+e.optString("minute","?")+"'  "+team(e.optString("team",""));
-        if(!who.isEmpty())text+=" — "+who;
-        String detail=e.optString("detail","");
-        if(!detail.isEmpty())text+=" ("+detail+")";
-        LinearLayout row=col();
-        add(row,txt(text,13,false,NAVY));
-        card(page,row);
+      detail("الحالة",status(match.optString("status","NS")));
+      for(String[] field:new String[][]{
+          {"venue","الملعب"},{"city","المدينة"},{"referee","الحكم"},{"round","الجولة"}}){
+        if(match.has(field[0])&&!match.optString(field[0]).isEmpty())
+          detail(field[1],match.optString(field[0]));
       }
-    }else if(detailTab==2){
-      JSONObject stats=match.optJSONObject("statistics");
-      if(stats==null||stats.length()==0)blank("إحصاءات المباراة غير متوفرة لدى المزود الحالي.");
-      else{
-        Iterator<String> keys=stats.keys();
-        while(keys.hasNext()){String k=keys.next();detail(k,stats.optString(k));}
-      }
-    }else{
-      JSONArray players=match.optJSONArray("lineups");
-      if(players==null||players.length()==0)blank("التشكيلات لم تتوفر بعد من المصدر.");
-      else for(int i=0;i<players.length();i++)detail("اللاعب "+(i+1),players.optString(i));
-    }
+      labelSection("متابعة الفريقين");
+      LinearLayout choices=row();
+      String home=match.optString("home"),away=match.optString("away");
+      wt(choices,pill("☆ "+team(home),following.contains(home),()->toggle(home)),1);
+      wt(choices,pill("☆ "+team(away),following.contains(away),()->toggle(away)),1);
+      add(page,choices);gap(page,14);
+      String link=match.optString("source_url","");
+      if(link.startsWith("https://"))
+        add(page,pill("زيارة المصدر الرسمي  ↗",false,()->open(link)));
+      gap(page,9);
+      add(page,txt("الإحصاءات والتشكيلات والغيابات تعتمد على تغطية مزود البيانات لكل بطولة.",
+            12,false,MUTED));
+    }else if(detailTab==1)renderEventTimeline(match.optJSONArray("events"));
+    else if(detailTab==2)renderStatBars(match.optJSONObject("statistics"));
+    else if(detailTab==3)renderLineups();
+    else if(detailTab==4)renderAbsences();
+    else if(detailTab==5)renderPlayers();
+    else if(detailTab==6)renderHeadToHead();
   }
   void detail(String k,String v){
     LinearLayout r=row();wt(r,txt(k,14,true,NAVY),1);
@@ -621,7 +814,18 @@ public class MainActivity extends Activity {
           String newTime=fresh.optString("generated_at","");
           if(!newTime.equals(oldTime) && fresh.has("matches")){
             int previousY=activeScroll==null?0:activeScroll.getScrollY();
+            String openedId=match==null?"":match.optString("id","");
             data=FeedClient.mergeSports(data,fresh);
+            if(!openedId.isEmpty()){
+              JSONArray games=list("matches");
+              for(int i=0;i<games.length();i++){
+                JSONObject updatedMatch=at(games,i);
+                if(openedId.equals(updatedMatch.optString("id"))){
+                  match=updatedMatch;
+                  break;
+                }
+              }
+            }
             if(foreground){
               render();
               if(activeScroll!=null)activeScroll.post(()->activeScroll.scrollTo(0,previousY));
