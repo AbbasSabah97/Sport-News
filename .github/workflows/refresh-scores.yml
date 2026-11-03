@@ -1,0 +1,41 @@
+name: Refresh football scores (5-min best effort)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '3/5 * * * *'
+permissions:
+  contents: write
+concurrency:
+  group: sport-news-football-refresh
+  cancel-in-progress: false
+jobs:
+  scores:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test football feed serialization
+        run: python -m unittest discover -s tests -v
+      - name: Refresh scores and schedules
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+        run: python -m backend.sports_refresh
+      - name: Publish compact football feed
+        run: |
+          set -e
+          cp docs/fixtures.json /tmp/worldpulse-fixtures.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            cp /tmp/worldpulse-fixtures.json docs/fixtures.json
+            git add docs/fixtures.json
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m 'data: refresh football scores [skip ci]'
+            if git push origin HEAD:main; then exit 0; fi
+          done
+          exit 1

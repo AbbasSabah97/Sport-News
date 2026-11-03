@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "generated_at": "",
+  "timezone": "Asia/Baghdad",
+  "week_start": "",
+  "week_end": "",
+  "sports_status": "unavailable",
+  "sports_error": "لم تُحدّث بيانات المباريات بعد",
+  "sports_checked": [],
+  "matches": [],
+  "live_count": 0,
+  "competitions": [
+    {
+      "id": "iraq",
+      "name": "دوري نجوم العراق"
+    },
+    {
+      "id": "spain",
+      "name": "الدوري الإسباني"
+    },
+    {
+      "id": "england",
+      "name": "الدوري الإنجليزي الممتاز"
+    },
+    {
+      "id": "ucl",
+      "name": "دوري أبطال أوروبا"
+    },
+    {
+      "id": "worldcup",
+      "name": "كأس العالم"
+    },
+    {
+      "id": "euro",
+      "name": "كأس أمم أوروبا"
+    },
+    {
+      "id": "asiacup",
+      "name": "كأس آسيا"
+    }
+  ]
+}
