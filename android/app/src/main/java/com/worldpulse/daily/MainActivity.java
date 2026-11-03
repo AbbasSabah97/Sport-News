@@ -10,6 +10,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.content.res.Configuration;
+import android.graphics.PorterDuff;
+import android.graphics.drawable.Drawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.*;
@@ -19,9 +21,9 @@ import java.time.format.*;
 import java.util.*;
 
 public class MainActivity extends Activity {
-  // Adobe palette: #B83742 #854248 #52393B #332E2E #332425.
-  // Semantic colors adapt to Android uiMode without modifying the user's preference.
-  static int NAVY,ORANGE,SKY,BG,WHITE,MUTED,PALE,GREEN;
+  // Travel palette: #2B3D54 #2C5B61 #247065 #60A65F #FFEC97.
+  // All UI colors use semantic roles and follow system light/dark mode.
+  static int NAVY,ORANGE,SKY,BG,WHITE,MUTED,PALE,GREEN,LIME,YELLOW,MIDBLUE,ON_ACTION;
   private boolean darkMode=false;
   private final Handler liveHandler=new Handler(Looper.getMainLooper());
   private long lastScorePoll=0;
@@ -34,37 +36,46 @@ public class MainActivity extends Activity {
     }
   };
   private void palette(){
-    darkMode=(getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)==Configuration.UI_MODE_NIGHT_YES;
-    ORANGE=Color.rgb(184,55,66); // #B83742
-    GREEN=darkMode?Color.rgb(116,204,149):Color.rgb(25,150,99);
+    darkMode=(getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+        ==Configuration.UI_MODE_NIGHT_YES;
+    MIDBLUE=Color.rgb(44,91,97);      // #2C5B61
+    LIME=Color.rgb(96,166,95);        // #60A65F
+    YELLOW=Color.rgb(255,236,151);    // #FFEC97
+    GREEN=LIME;
     if(darkMode){
-      BG=Color.rgb(51,36,37); // #332425
-      WHITE=Color.rgb(51,46,46); // #332E2E
-      SKY=Color.rgb(82,57,59); // #52393B
-      NAVY=Color.rgb(251,241,243); // accessible on dark surfaces
-      MUTED=Color.rgb(226,195,200);
-      PALE=Color.rgb(82,57,59);
+      BG=Color.rgb(19,34,45);
+      WHITE=Color.rgb(29,51,59);
+      SKY=Color.rgb(42,72,74);
+      NAVY=Color.rgb(242,249,246);
+      MUTED=Color.rgb(177,204,198);
+      PALE=Color.rgb(47,84,76);
+      ORANGE=LIME;
+      ON_ACTION=Color.rgb(22,44,47);
     }else{
-      BG=Color.rgb(253,247,248);
+      BG=Color.rgb(245,248,246);
       WHITE=Color.WHITE;
-      SKY=Color.rgb(247,231,234);
-      NAVY=Color.rgb(51,36,37); // #332425
-      MUTED=Color.rgb(133,66,72); // #854248
-      PALE=Color.rgb(251,236,238);
+      SKY=Color.rgb(229,240,236);
+      NAVY=Color.rgb(43,61,84);     // #2B3D54
+      MUTED=Color.rgb(77,112,112);
+      PALE=Color.rgb(236,247,232);
+      ORANGE=Color.rgb(36,112,101); // #247065
+      ON_ACTION=Color.WHITE;
     }
   }
   static final ZoneId ZONE=ZoneId.of("Asia/Baghdad");
   static final String[] IDS={"iraq","spain","england","ucl","worldcup","euro","asiacup"};
   static final String[] LEAGUES={"دوري نجوم العراق","الدوري الإسباني","الدوري الإنجليزي الممتاز",
        "دوري أبطال أوروبا","كأس العالم FIFA","كأس أمم أوروبا","كأس أمم آسيا"};
-  static final String[] ICONS={"🇮🇶","🇪🇸","🏴","⚽","🏆","🇪🇺","🌏"};
+  static final String[] ICONS={"IQ","LL","PL","CL","WC","EU","AFC"};
   static final String[] TABS={"الرئيسية","المباريات","البطولات","المتابعة","المزيد"};
-  static final String[] TAB_ICONS={"⌂","⚽","🏆","☆","☰"};
+  static final int[] TAB_ICONS={R.drawable.ic_nav_home,R.drawable.ic_nav_matches,
+      R.drawable.ic_nav_trophy,R.drawable.ic_nav_star,R.drawable.ic_nav_settings};
   final FeedClient client=new FeedClient();
   JSONObject data=new JSONObject(), match=null;
   SharedPreferences prefs;
   Set<String> following=new HashSet<>();
   LinearLayout page;
+  ScrollView activeScroll;
   int tab=0,day=-1,detailTab=0,leagueTab=0;
   String league="all",leaguePage=null,teamPage=null,error=null;
   boolean online=false,loading=false;
@@ -105,13 +116,14 @@ public class MainActivity extends Activity {
   void wt(LinearLayout p,View v,int w){p.addView(v,new LinearLayout.LayoutParams(0,-2,w));}
   void gap(LinearLayout p,int n){View v=new View(this);p.addView(v,new LinearLayout.LayoutParams(1,dp(n)));}
   void card(LinearLayout p,LinearLayout c){
-    c.setPadding(dp(15),dp(15),dp(15),dp(15));c.setBackground(fill(WHITE,17));
+    c.setPadding(dp(16),dp(16),dp(16),dp(16));c.setBackground(fill(WHITE,20));
+    c.setElevation(dp(1));
     LinearLayout.LayoutParams par=new LinearLayout.LayoutParams(-1,-2);par.bottomMargin=dp(10);p.addView(c,par);
   }
   TextView pill(String s,boolean active,Runnable action){
-    TextView t=txt(s,13,active,active?Color.WHITE:NAVY);
+    TextView t=txt(s,13,active,active?ON_ACTION:NAVY);
     t.setGravity(Gravity.CENTER);t.setPadding(dp(12),dp(10),dp(12),dp(10));
-    t.setBackground(fill(active?ORANGE:SKY,12));t.setOnClickListener(v->action.run());return t;
+    t.setBackground(fill(active?ORANGE:SKY,14));t.setOnClickListener(v->action.run());return t;
   }
   void chip(LinearLayout parent,String s,boolean active,Runnable action){
     TextView b=pill(s,active,action);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-2);
@@ -125,11 +137,32 @@ public class MainActivity extends Activity {
     if(more!=null){TextView v=txt(more+"  ‹",12,true,ORANGE);v.setOnClickListener(w->action.run());r.addView(v);}
     add(page,r);gap(page,11);
   }
+  ImageView vector(int res,int color,int size){
+    ImageView v=new ImageView(this);
+    v.setImageResource(res);
+    v.setColorFilter(color,PorterDuff.Mode.SRC_IN);
+    v.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    v.setLayoutParams(new LinearLayout.LayoutParams(dp(size),dp(size)));
+    return v;
+  }
+  TextView leagueEmblem(String code,int size){
+    TextView emblem=txt(leagueIcon(code),size<=44?11:13,true,darkMode?YELLOW:NAVY);
+    emblem.setGravity(Gravity.CENTER);
+    emblem.setBackground(fill(darkMode?SKY:PALE,16));
+    emblem.setWidth(dp(size));emblem.setHeight(dp(size));
+    return emblem;
+  }
   void toolbar(String label){
-    LinearLayout bar=row();wt(bar,txt("WorldPulse",26,true,NAVY),1);
-    TextView badge=txt("⚽",20,true,ORANGE);badge.setPadding(dp(10),dp(7),dp(10),dp(7));
-    badge.setBackground(fill(PALE,13));bar.addView(badge);add(page,bar);
-    add(page,txt("FOOTBALL  •  "+label,11,true,MUTED));gap(page,15);
+    LinearLayout bar=row();
+    ImageView logo=vector(R.drawable.ic_nav_matches,ORANGE,27);
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(27),dp(27));
+    lp.leftMargin=dp(11);bar.addView(logo,lp);
+    wt(bar,txt("WorldPulse",26,true,NAVY),1);
+    TextView badge=txt("LIVE",11,true,darkMode?NAVY:MIDBLUE);
+    badge.setPadding(dp(12),dp(9),dp(12),dp(9));
+    badge.setBackground(fill(darkMode?SKY:PALE,14));bar.addView(badge);
+    add(page,bar);
+    add(page,txt("FOOTBALL  •  "+label,11,true,MUTED));gap(page,17);
   }
   void message(String s){
     TextView v=txt(s,13,false,NAVY);v.setPadding(dp(12),dp(13),dp(12),dp(13));
@@ -156,13 +189,14 @@ public class MainActivity extends Activity {
     }
   }
   void reloadNotice(){
-    if(!online)message("البيانات التجريبية ظاهرة حتى اكتمال التحديث من الإنترنت.");
+    if(!online)message("بيانات تجريبية إلى حين اتصال التطبيق بمصدر المباريات.");
     if(error!=null)message(error);
-    String updated=data.optString("sports_updated_at",data.optString("generated_at",""));
+    String updated=data.optString("sports_source_updated_at",
+        data.optString("sports_updated_at",data.optString("generated_at","")));
     try{
       java.time.Instant when=OffsetDateTime.parse(updated).toInstant();
       long age=java.time.Duration.between(when,java.time.Instant.now()).toMinutes();
-      if(age>10)message("آخر تحديث للمباريات منذ "+age+" دقيقة. البيانات قد تتأخر عن المباريات المباشرة.");
+      if(age>10)message("آخر تحديث للمباريات منذ "+age+" دقيقة؛ النتائج قد تكون متأخرة.");
     }catch(Exception ignored){}
     try{
       if(!LocalDate.parse(data.optString("week_start")).equals(LocalDate.now(ZONE)))
@@ -188,6 +222,10 @@ public class MainActivity extends Activity {
   }
   String leagueIcon(String code){
     for(int i=0;i<IDS.length;i++)if(IDS[i].equals(code))return ICONS[i];return "⚽";
+  }
+  boolean isLiveStatus(String s){
+    return s.equals("LIVE")||s.equals("1H")||s.equals("2H")||s.equals("HT")
+        ||s.equals("ET")||s.equals("BT")||s.equals("P");
   }
   String status(String s){
     if(s.equals("NS"))return "لم تبدأ";if(s.equals("FT")||s.equals("AET")||s.equals("PEN"))return "انتهت";
@@ -269,6 +307,7 @@ public class MainActivity extends Activity {
   void render(){
     LinearLayout root=col();root.setBackgroundColor(BG);setContentView(root);
     ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setVerticalScrollBarEnabled(false);
+    activeScroll=scroll;
     root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
     page=col();page.setPadding(dp(16),dp(17),dp(16),dp(25));
     scroll.addView(page,new ScrollView.LayoutParams(-1,-2));
@@ -284,28 +323,32 @@ public class MainActivity extends Activity {
     for(int i=0;i<TABS.length;i++){
       final int k=i;LinearLayout item=col();item.setGravity(Gravity.CENTER);
       boolean selected=tab==i&&match==null&&teamPage==null&&leaguePage==null;
-      TextView ic=txt(TAB_ICONS[i],20,true,selected?ORANGE:MUTED);
-      ic.setGravity(Gravity.CENTER);add(item,ic);
+      ImageView ic=vector(TAB_ICONS[i],selected?ORANGE:MUTED,23);
+      LinearLayout iconWrap=row();iconWrap.setGravity(Gravity.CENTER);
+      iconWrap.setPadding(dp(14),dp(7),dp(14),dp(7));
+      iconWrap.setBackground(fill(selected?(darkMode?SKY:PALE):WHITE,16));
+      iconWrap.addView(ic);add(item,iconWrap);
       TextView lb=txt(TABS[i],11,selected,selected?ORANGE:MUTED);
       lb.setGravity(Gravity.CENTER);add(item,lb);
       item.setOnClickListener(v->{tab=k;match=null;teamPage=null;leaguePage=null;render();});
-      nav.addView(item,new LinearLayout.LayoutParams(0,dp(53),1));
+      nav.addView(item,new LinearLayout.LayoutParams(0,dp(68),1));
     }
     add(root,nav);
   }
   void home(){
-    LinearLayout hero=col();hero.setPadding(dp(19),dp(24),dp(19),dp(24));
-    hero.setBackground(gradient(Color.rgb(184,55,66),Color.rgb(133,66,72),22));
-    add(hero,txt("WorldPulse",28,true,Color.WHITE));
-    add(hero,txt("عالم كرة القدم بين يديك",17,true,Color.WHITE));gap(hero,6);
-    add(hero,txt("سبع بطولات • نتائج ومباريات بتوقيت بغداد",12,false,Color.WHITE));
+    LinearLayout hero=col();hero.setPadding(dp(22),dp(23),dp(22),dp(23));
+    hero.setBackground(gradient(Color.rgb(43,61,84),Color.rgb(44,91,97),24));
+    add(hero,txt("WorldPulse",30,true,Color.WHITE));
+    gap(hero,3);
+    add(hero,txt("عالم كرة القدم بين يديك",18,true,YELLOW));gap(hero,9);
+    add(hero,txt("سبع بطولات  •  مباريات مباشرة  •  توقيت بغداد",12,false,Color.WHITE));
     add(page,hero);gap(page,18);
     heading("البطولات", "الكل",()->{tab=2;render();});
     LinearLayout quick=row();
     for(int i=0;i<4;i++){
       final String id=IDS[i];
       LinearLayout box=col();box.setGravity(Gravity.CENTER);box.setBackground(fill(WHITE,14));
-      TextView e=txt(ICONS[i],20,true,NAVY);e.setGravity(Gravity.CENTER);add(box,e);
+      TextView e=leagueEmblem(id,42);e.setGravity(Gravity.CENTER);add(box,e);
       TextView n=txt(new String[]{"العراقي","LaLiga","Premier","Champions"}[i],11,true,NAVY);
       n.setGravity(Gravity.CENTER);add(box,n);
       box.setOnClickListener(v->{leaguePage=id;leagueTab=0;render();});
@@ -337,17 +380,22 @@ public class MainActivity extends Activity {
   void matchCard(LinearLayout target,JSONObject m,boolean showLeague){
     LinearLayout c=col();
     if(showLeague){
-      LinearLayout r=row();wt(r,txt(leagueIcon(m.optString("competition_id"))+"  "+
-          leagueName(m.optString("competition_id")),12,true,NAVY),1);
+      LinearLayout r=row();
+      String code=m.optString("competition_id");
+      TextView emblem=leagueEmblem(code,32);
+      LinearLayout.LayoutParams eb=new LinearLayout.LayoutParams(dp(32),dp(32));eb.leftMargin=dp(9);
+      r.addView(emblem,eb);
+      wt(r,txt(leagueName(code),12,true,NAVY),1);
       r.addView(txt(date(local(m.optString("kickoff"))),11,false,MUTED));add(c,r);gap(c,11);
     }
     LinearLayout teams=row();
     TextView home=txt(team(m.optString("home")),14,true,NAVY),away=txt(team(m.optString("away")),14,true,NAVY);
     home.setGravity(Gravity.CENTER);away.setGravity(Gravity.CENTER);
-    TextView points=txt(score(m),17,true,ORANGE);points.setGravity(Gravity.CENTER);
+    TextView points=txt(score(m),18,true,darkMode?YELLOW:ORANGE);points.setGravity(Gravity.CENTER);
     wt(teams,home,12);wt(teams,points,8);wt(teams,away,12);add(c,teams);gap(c,9);
     LinearLayout bottom=row();
-    wt(bottom,txt(status(m.optString("status","NS")),11,true,MUTED),1);
+    boolean live=isLiveStatus(m.optString("status","NS"));
+    wt(bottom,txt(status(m.optString("status","NS")),11,true,live?GREEN:MUTED),1);
     bottom.addView(txt(time(m.optString("kickoff"))+" • بغداد",11,false,MUTED));
     add(c,bottom);c.setOnClickListener(v->{match=m;detailTab=0;render();});card(target,c);
   }
@@ -386,7 +434,9 @@ public class MainActivity extends Activity {
     toolbar("البطولات");heading("البطولات السبع",null,null);
     for(int i=0;i<IDS.length;i++){
       final String id=IDS[i];LinearLayout c=row();
-      c.addView(txt(ICONS[i]+"  ",24,true,NAVY));
+      TextView emblem=leagueEmblem(id,48);
+      LinearLayout.LayoutParams emblemParams=new LinearLayout.LayoutParams(dp(48),dp(48));
+      emblemParams.leftMargin=dp(15);c.addView(emblem,emblemParams);
       LinearLayout sub=col();add(sub,txt(LEAGUES[i],16,true,NAVY));
       add(sub,txt("المباريات والترتيب عند توفر البيانات",11,false,MUTED));wt(c,sub,1);
       c.addView(txt("‹",22,true,ORANGE));c.setOnClickListener(v->{leaguePage=id;leagueTab=0;render();});
@@ -400,7 +450,8 @@ public class MainActivity extends Activity {
   void leagueDetails(){
     back("البطولات",()->{leaguePage=null;tab=2;render();});toolbar("البطولات");
     LinearLayout hero=col();hero.setGravity(Gravity.CENTER);
-    TextView symbol=txt(leagueIcon(leaguePage),28,true,NAVY);symbol.setGravity(Gravity.CENTER);add(hero,symbol);
+    TextView symbol=leagueEmblem(leaguePage,60);
+    symbol.setGravity(Gravity.CENTER);add(hero,symbol);
     TextView name=txt(leagueName(leaguePage),21,true,NAVY);name.setGravity(Gravity.CENTER);add(hero,name);
     card(page,hero);
     LinearLayout r=row();wt(r,pill("المباريات",leagueTab==0,()->{leagueTab=0;render();}),1);
@@ -419,7 +470,14 @@ public class MainActivity extends Activity {
   void standings(){
     JSONObject all=data.optJSONObject("standings");
     JSONArray a=all==null?null:all.optJSONArray(leaguePage);
-    if(a==null||a.length()==0){blank("ترتيب البطولة غير متاح حالياً من المصدر. لا نعرض أرقاماً تقديرية.");return;}
+    if(a==null||a.length()==0){blank("الترتيب غير متاح من المصدر لهذه البطولة. لا نعرض ترتيباً تخمينياً.");return;}
+    String updated=data.optString("standings_updated_at",data.optString("generated_at",""));
+    if(!updated.isEmpty()){
+      try{
+        long age=java.time.Duration.between(OffsetDateTime.parse(updated).toInstant(),java.time.Instant.now()).toHours();
+        if(age>3)message("بيانات الترتيب منذ "+age+" ساعة؛ قد تكون النتائج الأخيرة غير منعكسة بعد.");
+      }catch(Exception ignored){}
+    }
     LinearLayout head=row();wt(head,txt("الفريق",12,true,MUTED),18);
     for(String x:new String[]{"لعب","ف","ت","خ","ن"}){TextView t=txt(x,11,true,MUTED);t.setGravity(Gravity.CENTER);wt(head,t,4);}
     add(page,head);gap(page,7);
@@ -437,7 +495,7 @@ public class MainActivity extends Activity {
   void matchPage(){
     back("المباريات",()->{match=null;render();});toolbar(leagueName(match.optString("competition_id")));
     LinearLayout hero=col();hero.setGravity(Gravity.CENTER);hero.setPadding(dp(16),dp(23),dp(16),dp(23));
-    hero.setBackground(gradient(Color.rgb(82,57,59),Color.rgb(133,66,72),22));
+    hero.setBackground(gradient(Color.rgb(43,61,84),Color.rgb(44,91,97),24));
     TextView teams=txt(team(match.optString("home"))+"  ×  "+team(match.optString("away")),17,true,Color.WHITE);
     teams.setGravity(Gravity.CENTER);add(hero,teams);gap(hero,12);
     TextView sc=txt(score(match),35,true,Color.WHITE);sc.setGravity(Gravity.CENTER);add(hero,sc);gap(hero,9);
@@ -524,7 +582,7 @@ public class MainActivity extends Activity {
     add(c,txt("7 بطولات. المواعيد والنتائج حقيقية عند توفرها. لا يتم اختلاق الترتيب أو الإحصاءات المفقودة.",13,false,NAVY));gap(c,11);
     add(c,txt("نتائج المباريات: تحديث خادم مجدول كل 5 دقائق تقريباً، وتحقق من الهاتف أثناء فتح التطبيق كل دقيقة. الجدولة قد تتأخر؛ لا يوجد ضمان لحظي أو تنبيهات أثناء إغلاق التطبيق.",12,false,MUTED));
     gap(c,10);
-    add(c,txt("لوحة الألوان #B83742 · #854248 · #52393B · #332E2E · #332425 تتكيف تلقائياً مع الوضع الداكن.",12,false,MUTED));
+    add(c,txt("الألوان: #2B3D54 · #2C5B61 · #247065 · #60A65F · #FFEC97. الوضع الداكن يعتمد تلقائياً على إعداد الهاتف.",12,false,MUTED));
     gap(c,10);
     add(c,txt("لا تُحفظ صور أو ملفات نتائج على الهاتف؛ أسماء الفرق المتابعة فقط.",12,false,MUTED));card(page,c);
     add(page,pill(loading?"جارٍ التحديث...":"↻ تحديث المباريات",false,()->refresh()));gap(page,13);
@@ -562,8 +620,12 @@ public class MainActivity extends Activity {
           String oldTime=data.optString("sports_updated_at","");
           String newTime=fresh.optString("generated_at","");
           if(!newTime.equals(oldTime) && fresh.has("matches")){
+            int previousY=activeScroll==null?0:activeScroll.getScrollY();
             data=FeedClient.mergeSports(data,fresh);
-            if(foreground)render();
+            if(foreground){
+              render();
+              if(activeScroll!=null)activeScroll.post(()->activeScroll.scrollTo(0,previousY));
+            }
           }
         });
       }
