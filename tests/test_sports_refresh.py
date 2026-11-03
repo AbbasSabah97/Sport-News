@@ -10,7 +10,7 @@ class SportsRefreshTest(unittest.TestCase):
         self.assertEqual(len(sanitize_matches(source)),1)
     def test_live_count_and_week(self):
         now=dt.datetime(2026,11,4,11,tzinfo=UTC)
-        data=build(now,fetcher=lambda _:([{"id":"a","competition_id":"iraq","kickoff":"2026-11-04T20:00:00+03:00","status":"LIVE"}],"ok",None,["iraq"]))
+        data,_=build(now,fetcher=lambda _:([{"id":"a","competition_id":"iraq","kickoff":"2026-11-04T20:00:00+03:00","status":"LIVE"}],"ok",None,["iraq"]))
         self.assertEqual(data["live_count"],1)
         self.assertEqual(data["week_start"],"2026-11-04")
         self.assertEqual(data["week_end"],"2026-11-10")

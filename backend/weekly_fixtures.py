@@ -211,7 +211,9 @@ def api_week(now,key):
             away=(teams.get("away") or {}).get("name") or "—",
             home_goals=scores.get("home"),away_goals=scores.get("away"),
             kickoff=f.get("date"),status=(f.get("status") or {}).get("short") or "NS",
-            provider="API-Football"))
+            provider="API-Football",
+            home_id=(teams.get("home") or {}).get("id"),
+            away_id=(teams.get("away") or {}).get("id")))
     return within_week(rows,begin,end)
 
 def weekly_fixtures(now):

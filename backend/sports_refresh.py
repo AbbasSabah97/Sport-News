@@ -25,19 +25,21 @@ def sanitize_matches(matches):
         row={k:x.get(k) for k in (
             "id","competition_id","league","home","away","home_goals",
             "away_goals","kickoff","status","provider","source_url",
-            "events","statistics","lineups","schedule_verified_at"
+            "events","statistics","lineups","schedule_verified_at",
+            "lineup_details","player_stats","injuries","headtohead",
+            "venue","city","referee","round","home_id","away_id"
         ) if k in x}
         result.append(row)
     return sorted(result,key=lambda x:x.get("kickoff") or "")
 
-def build(now=None,fetcher=None):
+def build(now=None,fetcher=None,cache_path="docs/match-extras-cache.json"):
     now=now or dt.datetime.now(UTC)
     fetcher=fetcher or weekly_fixtures
     matches,status,message,checked=fetcher(now)
     begin,end=week_window(now)
     from .match_details import enrich
     matches=sanitize_matches(matches)
-    matches=enrich(matches)
+    matches,cache=enrich(matches,now,cache_path)
     return {
         "schema_version":1,
         "generated_at":now.isoformat(),
@@ -48,7 +50,7 @@ def build(now=None,fetcher=None):
         "matches":matches,
         "live_count":sum(x.get("status") in LIVE for x in matches),
         "competitions":[{"id":k,"name":name} for k,name in COMPETITIONS],
-    }
+    },cache
 
 def publish(path=Path("docs/fixtures.json")):
     path=Path(path)
@@ -58,9 +60,11 @@ def publish(path=Path("docs/fixtures.json")):
         try:old=json.loads(path.read_text(encoding="utf-8"))
         except (ValueError,OSError):pass
     now=dt.datetime.now(UTC)
-    try:data=build(now)
-    except (OSError,ValueError,TypeError,KeyError) as exc:
-        data=build(now,fetcher=lambda now:([],"error","تعذر تحديث بيانات المباريات؛ حاول لاحقاً.",[]))
+    cache_path=Path("docs/match-extras-cache.json")
+    try:data,cache=build(now,cache_path=cache_path)
+    except (OSError,ValueError,TypeError,KeyError):
+        data,cache=build(now,fetcher=lambda now:([],"error","تعذر تحديث بيانات المباريات؛ حاول لاحقاً.",[]),
+                         cache_path=cache_path)
     # Never substitute a previous week's fixtures.
     if data["sports_status"]=="error" and not data["matches"] and old.get("week_start")==data["week_start"] and old.get("matches"):
         data["matches"]=sanitize_matches(old["matches"])
@@ -68,6 +72,9 @@ def publish(path=Path("docs/fixtures.json")):
         data["sports_error"]="تأخر المصدر؛ المعروض آخر جدول محفوظ مع توضيح وقت التحديث."
         data["source_generated_at"]=old.get("generated_at")
     path.write_text(json.dumps(data,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
+    # Cache is server-side only and retains no API keys.
+    cache_path.parent.mkdir(parents=True,exist_ok=True)
+    cache_path.write_text(json.dumps(cache,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
     print("Fixtures:",len(data["matches"]),"status:",data["sports_status"])
 
 if __name__=="__main__":publish()
