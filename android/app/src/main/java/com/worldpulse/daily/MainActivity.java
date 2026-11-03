@@ -437,14 +437,14 @@ public class MainActivity extends Activity {
   void matchPage(){
     back("المباريات",()->{match=null;render();});toolbar(leagueName(match.optString("competition_id")));
     LinearLayout hero=col();hero.setGravity(Gravity.CENTER);hero.setPadding(dp(16),dp(23),dp(16),dp(23));
-    hero.setBackground(gradient(NAVY,Color.rgb(68,92,167),22));
-    TextView teams=txt(team(match.optString("home"))+"  ×  "+team(match.optString("away")),17,true,WHITE);
+    hero.setBackground(gradient(Color.rgb(82,57,59),Color.rgb(133,66,72),22));
+    TextView teams=txt(team(match.optString("home"))+"  ×  "+team(match.optString("away")),17,true,Color.WHITE);
     teams.setGravity(Gravity.CENTER);add(hero,teams);gap(hero,12);
-    TextView sc=txt(score(match),35,true,WHITE);sc.setGravity(Gravity.CENTER);add(hero,sc);gap(hero,9);
-    TextView st=txt(status(match.optString("status"))+" • "+date(local(match.optString("kickoff"))),12,false,WHITE);
+    TextView sc=txt(score(match),35,true,Color.WHITE);sc.setGravity(Gravity.CENTER);add(hero,sc);gap(hero,9);
+    TextView st=txt(status(match.optString("status"))+" • "+date(local(match.optString("kickoff"))),12,false,Color.WHITE);
     st.setGravity(Gravity.CENTER);add(hero,st);add(page,hero);gap(page,17);
-    LinearLayout r=row();String[] labels={"الملخص","الإحصاءات","التشكيلة"};
-    for(int i=0;i<3;i++){final int n=i;wt(r,pill(labels[i],detailTab==i,()->{detailTab=n;render();}),1);}
+    LinearLayout r=row();String[] labels={"الملخص","الأحداث","الإحصاءات","التشكيلة"};
+    for(int i=0;i<labels.length;i++){final int n=i;wt(r,pill(labels[i],detailTab==i,()->{detailTab=n;render();}),1);}
     add(page,r);gap(page,16);
     if(detailTab==0){
       detail("الموعد",time(match.optString("kickoff"))+" بتوقيت بغداد");
@@ -459,6 +459,22 @@ public class MainActivity extends Activity {
       String link=match.optString("source_url");
       if(link.startsWith("https://"))add(page,pill("رابط المصدر الرسمي ↗",false,()->open(link)));
     }else if(detailTab==1){
+      JSONArray events=match.optJSONArray("events");
+      if(events==null||events.length()==0)blank("أحداث المباراة غير متاحة حالياً. تُعرض الأهداف والبطاقات عند وصولها من المزود.");
+      else for(int i=0;i<events.length();i++){
+        JSONObject e=at(events,i);
+        String type=e.optString("type","");
+        String symbol=type.equals("Goal")?"⚽":type.equals("Card")?"▣":type.equals("subst")?"↔":"•";
+        String who=e.optString("player","");
+        String text=symbol+" "+e.optString("minute","?")+"'  "+team(e.optString("team",""));
+        if(!who.isEmpty())text+=" — "+who;
+        String detail=e.optString("detail","");
+        if(!detail.isEmpty())text+=" ("+detail+")";
+        LinearLayout row=col();
+        add(row,txt(text,13,false,NAVY));
+        card(page,row);
+      }
+    }else if(detailTab==2){
       JSONObject stats=match.optJSONObject("statistics");
       if(stats==null||stats.length()==0)blank("إحصاءات المباراة غير متوفرة لدى المزود الحالي.");
       else{
