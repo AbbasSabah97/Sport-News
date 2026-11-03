@@ -54,6 +54,41 @@ def official_iraq_snapshot(now):
                 schedule_verified_at="2026-10-30"))
     return rows
 
+# Official Iraqi Stars League Matchday 13, verified on 2026-11-04.
+# Official page publishes kickoffs in UTC (13:00 = 16:00 Baghdad).
+# This is a limited fallback snapshot, never an ongoing live results service.
+ROUND13_SOURCE="https://iraqstarsleague.com/en/matches?league_id=1&round=13"
+ROUND13=[
+ ("2026-11-05T13:00:00+00:00","الكهرباء","زاخو"),
+ ("2026-11-05T13:45:00+00:00","ديالى","الميناء"),
+ ("2026-11-05T15:30:00+00:00","الموصل","دهوك"),
+ ("2026-11-06T13:00:00+00:00","نوروز","كربلاء"),
+ ("2026-11-06T13:45:00+00:00","الطلبة","غاز الشمال"),
+ ("2026-11-06T15:30:00+00:00","الكرمة","نفط ميسان"),
+ ("2026-11-07T13:00:00+00:00","القوة الجوية","الكرخ"),
+ ("2026-11-07T15:30:00+00:00","الزوراء","الجولان"),
+ ("2026-11-08T13:30:00+00:00","أربيل","الغراف"),
+ ("2026-11-08T16:00:00+00:00","الشرطة","النفط"),
+]
+def round13_iraq_snapshot(now):
+    start,end=week_window(now)
+    if not dt.date(2026,11,2)<=start<=dt.date(2026,11,8):
+        return []
+    rows=[]
+    for kickoff,home,away in ROUND13:
+        instant=dt.datetime.fromisoformat(kickoff)
+        if start<=local_day(kickoff)<=end and instant>now:
+            rows.append(dict(
+                id="iraq-official13-"+home+"-"+kickoff[:10],
+                competition_id="iraq",league="دوري نجوم العراق",
+                home=home,away=away,home_goals=None,away_goals=None,
+                kickoff=kickoff,status="NS",
+                provider="دوري نجوم العراق (جدول مؤكد بتاريخ 4 نوفمبر)",
+                source_url=ROUND13_SOURCE,
+                schedule_verified_at="2026-11-04"
+            ))
+    return rows
+
 def fetch_espn_month(job):
     code,slug,month=job
     uri=("https://site.api.espn.com/apis/site/v2/sports/soccer/"
@@ -126,7 +161,7 @@ def fallback_week(now):
             except (OSError,ValueError,TypeError,KeyError):
                 pass
     results=within_week(results,begin,end)
-    known=official_iraq_snapshot(now)
+    known=official_iraq_snapshot(now)+round13_iraq_snapshot(now)
     # If official verified schedule exists prefer it over missing/unconfirmed
     # Iraqi data; exclude same-date conflicting listings from other providers.
     if known:

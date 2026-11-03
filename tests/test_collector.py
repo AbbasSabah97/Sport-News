@@ -73,6 +73,17 @@ class CollectorTests(unittest.TestCase):
     def test_official_schedule_expires(self):
         from backend.weekly_fixtures import official_iraq_snapshot
         self.assertEqual(official_iraq_snapshot(dt.datetime(2026,11,1,12,tzinfo=UTC)),[])
+    def test_round13_iraqi_official_fixture_snapshot(self):
+        from backend.weekly_fixtures import round13_iraq_snapshot
+        today=dt.datetime(2026,11,4,10,tzinfo=UTC)
+        matches=round13_iraq_snapshot(today)
+        self.assertEqual(len(matches),10)
+        self.assertTrue(all(x["source_url"].endswith("round=13") for x in matches))
+        self.assertEqual(matches[0]["kickoff"],"2026-11-05T13:00:00+00:00")
+    def test_round13_expired_after_8_november(self):
+        from backend.weekly_fixtures import round13_iraq_snapshot
+        now=dt.datetime(2026,11,9,10,tzinfo=UTC)
+        self.assertEqual(round13_iraq_snapshot(now),[])
     def test_monthly_espn_jobs(self):
         from backend.weekly_fixtures import monthly_tasks,LEAGUES
         jobs=monthly_tasks(dt.date(2026,10,30),dt.date(2026,11,5))
