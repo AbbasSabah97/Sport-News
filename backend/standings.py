@@ -1,6 +1,7 @@
 """Best-effort ESPN league tables. Never infer standings from selected fixtures."""
 import concurrent.futures
 import json
+import os
 import urllib.parse
 from .collector import request
 from .football_fallback import LEAGUES
@@ -50,6 +51,55 @@ def fetch_one(args):
     payload=json.loads(request(uri))
     return code,parse_standings(payload,code)
 
+
+def parse_api_football_standings(data):
+    """Convert official API-Football standings without inventing points."""
+    out=[]
+    league=(data.get("league") or {})
+    for table in league.get("standings") or []:
+        for item in table:
+            team=(item.get("team") or {})
+            all_games=(item.get("all") or {})
+            if item.get("points") is None or not team.get("name"):continue
+            rank=item.get("rank")
+            group=item.get("group") or ""
+            out.append({
+                "team":team["name"],"rank":rank if rank is not None else len(out)+1,
+                "points":item["points"],"played":all_games.get("played"),
+                "wins":(all_games.get("win")),"draws":all_games.get("draw"),
+                "losses":all_games.get("lose"),"goal_difference":item.get("goalsDiff"),
+                "group":group,
+            })
+    return out[:60]
+
+def optional_iraqi_standings():
+    """Discover Iraqi league & season; don't assume a league ID."""
+    key=os.getenv("API_FOOTBALL_KEY","").strip()
+    if not key:return []
+    headers={"x-apisports-key":key}
+    try:
+        leagues=json.loads(request("https://v3.football.api-sports.io/leagues?country=Iraq&current=true",headers))
+        candidates=[]
+        for candidate in leagues.get("response") or []:
+            league=candidate.get("league") or {}
+            title=str(league.get("name","")).casefold()
+            if any(x in title for x in ("stars league","premier league","iraqi league")):
+                seasons=[s for s in candidate.get("seasons") or [] if s.get("current")]
+                if seasons:
+                    candidates.append((league.get("id"),seasons[0].get("year")))
+        for lid,year in candidates[:2]:
+            if not lid or not year:continue
+            url=("https://v3.football.api-sports.io/standings?league="
+                 +str(lid)+"&season="+str(year))
+            payload=json.loads(request(url,headers))
+            if payload.get("errors"):continue
+            for response in payload.get("response") or []:
+                data=parse_api_football_standings(response)
+                if data:return data
+    except (OSError,ValueError,KeyError,TypeError):
+        pass
+    return []
+
 def get_standings():
     standings={}
     codes=[(k,v) for k,v in LEAGUES.items()]
@@ -61,4 +111,6 @@ def get_standings():
                 if rows:standings[code]=rows
             except (OSError,ValueError,KeyError,TypeError):
                 continue
+    iraqi=optional_iraqi_standings()
+    if iraqi:standings['iraq']=iraqi
     return standings

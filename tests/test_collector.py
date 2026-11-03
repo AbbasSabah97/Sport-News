@@ -111,6 +111,21 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(parse_standings({},"iraq"),[])
         self.assertEqual(parse_standings({"standings":{"entries":[
             {"team":{"name":"Club B"},"stats":[]}]}},"iraq"),[])
+    def test_api_football_iraqi_league_table(self):
+        from backend.standings import parse_api_football_standings
+        data={"league":{"standings":[[{
+             "team":{"name":"الشرطة"},"rank":1,"points":27,
+             "group":"Stars League", "goalsDiff":12,
+             "all":{"played":11,"win":8,"draw":3,"lose":0}
+        }]]}}
+        rows=parse_api_football_standings(data)
+        self.assertEqual(rows[0]["team"],"الشرطة")
+        self.assertEqual(rows[0]["played"],11)
+        self.assertEqual(rows[0]["points"],27)
+    def test_missing_points_are_not_invented(self):
+        from backend.standings import parse_api_football_standings
+        self.assertEqual(parse_api_football_standings({"league":{"standings":[[
+            {"team":{"name":"Test"},"all":{"played":2}}]]}}),[])
     def test_competitions(self):
         self.assertEqual(len(COMPETITIONS),7)
         self.assertEqual(league_code({"id":39,"name":"Premier League","country":"England"}),"england")

@@ -213,7 +213,9 @@ def build(now=None):
         category_counts=counts,
         source_warnings=warnings,sports_status=status,sports_error=sports_error,
         competitions=[dict(id=k,name=v) for k,v in COMPETITIONS],matches=matches,
-        sports_checked=checked,standings=tables,week_start=now.astimezone(BAGHDAD).date().isoformat(),
+        sports_checked=checked,standings=tables,
+        standings_updated_at=now.isoformat() if tables else "",
+        week_start=now.astimezone(BAGHDAD).date().isoformat(),
         week_end=(now.astimezone(BAGHDAD).date()+dt.timedelta(days=6)).isoformat())
 
 def main():
