@@ -7,6 +7,9 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.content.res.Configuration;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.*;
@@ -16,9 +19,40 @@ import java.time.format.*;
 import java.util.*;
 
 public class MainActivity extends Activity {
-  static final int NAVY=Color.rgb(27,43,91), ORANGE=Color.rgb(255,119,48),
-      SKY=Color.rgb(237,241,252), BG=Color.rgb(248,249,253), WHITE=Color.WHITE,
-      MUTED=Color.rgb(113,124,151), PALE=Color.rgb(255,235,220), GREEN=Color.rgb(22,163,100);
+  // Adobe palette: #B83742 #854248 #52393B #332E2E #332425.
+  // Semantic colors adapt to Android uiMode without modifying the user's preference.
+  static int NAVY,ORANGE,SKY,BG,WHITE,MUTED,PALE,GREEN;
+  private boolean darkMode=false;
+  private final Handler liveHandler=new Handler(Looper.getMainLooper());
+  private long lastScorePoll=0;
+  private boolean foreground=false;
+  private final Runnable liveTicker=new Runnable(){
+    @Override public void run(){
+      if(!foreground)return;
+      if(online && !loading && System.currentTimeMillis()-lastScorePoll>55000)refreshScores();
+      liveHandler.postDelayed(this,60000);
+    }
+  };
+  private void palette(){
+    darkMode=(getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)==Configuration.UI_MODE_NIGHT_YES;
+    ORANGE=Color.rgb(184,55,66); // #B83742
+    GREEN=darkMode?Color.rgb(116,204,149):Color.rgb(25,150,99);
+    if(darkMode){
+      BG=Color.rgb(51,36,37); // #332425
+      WHITE=Color.rgb(51,46,46); // #332E2E
+      SKY=Color.rgb(82,57,59); // #52393B
+      NAVY=Color.rgb(251,241,243); // accessible on dark surfaces
+      MUTED=Color.rgb(226,195,200);
+      PALE=Color.rgb(82,57,59);
+    }else{
+      BG=Color.rgb(253,247,248);
+      WHITE=Color.WHITE;
+      SKY=Color.rgb(247,231,234);
+      NAVY=Color.rgb(51,36,37); // #332425
+      MUTED=Color.rgb(133,66,72); // #854248
+      PALE=Color.rgb(251,236,238);
+    }
+  }
   static final ZoneId ZONE=ZoneId.of("Asia/Baghdad");
   static final String[] IDS={"iraq","spain","england","ucl","worldcup","euro","asiacup"};
   static final String[] LEAGUES={"دوري نجوم العراق","الدوري الإسباني","الدوري الإنجليزي الممتاز",
@@ -37,9 +71,10 @@ public class MainActivity extends Activity {
 
   @Override public void onCreate(Bundle b){
     super.onCreate(b);
+    palette();
     if(android.os.Build.VERSION.SDK_INT>=29)getWindow().getDecorView().setForceDarkAllowed(false);
     getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(WHITE);
-    getWindow().getDecorView().setSystemUiVisibility(
+    getWindow().getDecorView().setSystemUiVisibility(darkMode?0:
         View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
     prefs=getSharedPreferences("football_follows",MODE_PRIVATE);
     following.addAll(prefs.getStringSet("teams",new HashSet<>()));
@@ -74,7 +109,7 @@ public class MainActivity extends Activity {
     LinearLayout.LayoutParams par=new LinearLayout.LayoutParams(-1,-2);par.bottomMargin=dp(10);p.addView(c,par);
   }
   TextView pill(String s,boolean active,Runnable action){
-    TextView t=txt(s,13,active,active?WHITE:NAVY);
+    TextView t=txt(s,13,active,active?Color.WHITE:NAVY);
     t.setGravity(Gravity.CENTER);t.setPadding(dp(12),dp(10),dp(12),dp(10));
     t.setBackground(fill(active?ORANGE:SKY,12));t.setOnClickListener(v->action.run());return t;
   }
@@ -94,7 +129,7 @@ public class MainActivity extends Activity {
     LinearLayout bar=row();wt(bar,txt("WorldPulse",26,true,NAVY),1);
     TextView badge=txt("⚽",20,true,ORANGE);badge.setPadding(dp(10),dp(7),dp(10),dp(7));
     badge.setBackground(fill(PALE,13));bar.addView(badge);add(page,bar);
-    add(page,txt("FOOTBALL  •  "+label,11,true,ORANGE));gap(page,15);
+    add(page,txt("FOOTBALL  •  "+label,11,true,MUTED));gap(page,15);
   }
   void message(String s){
     TextView v=txt(s,13,false,NAVY);v.setPadding(dp(12),dp(13),dp(12),dp(13));
@@ -105,9 +140,30 @@ public class MainActivity extends Activity {
     TextView icon=txt("⚽",27,true,ORANGE);icon.setGravity(Gravity.CENTER);add(c,icon);gap(c,8);
     TextView t=txt(s,14,false,MUTED);t.setGravity(Gravity.CENTER);add(c,t);card(page,c);
   }
+  void liveBanner(){
+    int live=0;
+    JSONArray games=list("matches");
+    for(int i=0;i<games.length();i++){
+      String state=at(games,i).optString("status","NS");
+      if(state.equals("LIVE")||state.equals("1H")||state.equals("2H")||state.equals("HT"))live++;
+    }
+    if(live>0){
+      LinearLayout strip=row();
+      wt(strip,txt("●  "+live+" مباراة جارية حالياً",14,true,GREEN),1);
+      TextView t=txt("عرض المباريات  ‹",12,true,ORANGE);
+      t.setOnClickListener(v->{tab=1;day=-1;render();});
+      strip.addView(t);card(page,strip);
+    }
+  }
   void reloadNotice(){
     if(!online)message("البيانات التجريبية ظاهرة حتى اكتمال التحديث من الإنترنت.");
     if(error!=null)message(error);
+    String updated=data.optString("sports_updated_at",data.optString("generated_at",""));
+    try{
+      java.time.Instant when=OffsetDateTime.parse(updated).toInstant();
+      long age=java.time.Duration.between(when,java.time.Instant.now()).toMinutes();
+      if(age>10)message("آخر تحديث للمباريات منذ "+age+" دقيقة. البيانات قد تتأخر عن المباريات المباشرة.");
+    }catch(Exception ignored){}
     try{
       if(!LocalDate.parse(data.optString("week_start")).equals(LocalDate.now(ZONE)))
         message("الجدول قديم؛ اضغط تحديث للحصول على مباريات الأسبوع الحالي.");
@@ -239,10 +295,10 @@ public class MainActivity extends Activity {
   }
   void home(){
     LinearLayout hero=col();hero.setPadding(dp(19),dp(24),dp(19),dp(24));
-    hero.setBackground(gradient(Color.rgb(255,153,90),Color.rgb(255,229,211),22));
-    add(hero,txt("WorldPulse",28,true,NAVY));
-    add(hero,txt("عالم كرة القدم بين يديك",17,true,NAVY));gap(hero,6);
-    add(hero,txt("سبع بطولات • نتائج ومباريات بتوقيت بغداد",12,false,NAVY));
+    hero.setBackground(gradient(Color.rgb(184,55,66),Color.rgb(133,66,72),22));
+    add(hero,txt("WorldPulse",28,true,Color.WHITE));
+    add(hero,txt("عالم كرة القدم بين يديك",17,true,Color.WHITE));gap(hero,6);
+    add(hero,txt("سبع بطولات • نتائج ومباريات بتوقيت بغداد",12,false,Color.WHITE));
     add(page,hero);gap(page,18);
     heading("البطولات", "الكل",()->{tab=2;render();});
     LinearLayout quick=row();
@@ -258,6 +314,7 @@ public class MainActivity extends Activity {
     }
     add(page,quick);gap(page,20);
     heading("مباريات هذا الأسبوع","عرض الكل",()->{tab=1;day=-1;render();});
+    liveBanner();
     reloadNotice();
     JSONArray fixtures=list("matches");int count=0;
     for(int i=0;i<fixtures.length()&&count<8;i++){
@@ -312,7 +369,7 @@ public class MainActivity extends Activity {
   }
   void matches(){
     toolbar("المباريات");heading("جدول المباريات",null,null);
-    dates();filters();reloadNotice();JSONArray a=list("matches");
+    dates();filters();liveBanner();reloadNotice();JSONArray a=list("matches");
     LocalDate last=null;int count=0;
     for(int i=0;i<a.length();i++){
       JSONObject m=at(a,i);LocalDate d=local(m.optString("kickoff"));
@@ -449,7 +506,11 @@ public class MainActivity extends Activity {
     LinearLayout c=col();add(c,txt("WorldPulse Football — Android 2.0",17,true,NAVY));gap(c,9);
     add(c,txt("البرتقالي والنيلي • تصميم أصلي لعشاق كرة القدم",13,false,MUTED));gap(c,12);
     add(c,txt("7 بطولات. المواعيد والنتائج حقيقية عند توفرها. لا يتم اختلاق الترتيب أو الإحصاءات المفقودة.",13,false,NAVY));gap(c,11);
-    add(c,txt("البيانات تُحدّث على GitHub كل ساعة تقريباً. تُحفظ أسماء الفرق المتابعة فقط على الهاتف، ولا يتم تحميل صور.",12,false,MUTED));card(page,c);
+    add(c,txt("نتائج المباريات: تحديث خادم مجدول كل 5 دقائق تقريباً، وتحقق من الهاتف أثناء فتح التطبيق كل دقيقة. الجدولة قد تتأخر؛ لا يوجد ضمان لحظي أو تنبيهات أثناء إغلاق التطبيق.",12,false,MUTED));
+    gap(c,10);
+    add(c,txt("لوحة الألوان #B83742 · #854248 · #52393B · #332E2E · #332425 تتكيف تلقائياً مع الوضع الداكن.",12,false,MUTED));
+    gap(c,10);
+    add(c,txt("لا تُحفظ صور أو ملفات نتائج على الهاتف؛ أسماء الفرق المتابعة فقط.",12,false,MUTED));card(page,c);
     add(page,pill(loading?"جارٍ التحديث...":"↻ تحديث المباريات",false,()->refresh()));gap(page,13);
     add(page,pill("المشروع على GitHub ↗",false,()->open("https://github.com/AbbasSabah97/Sport-News")));
   }
@@ -467,12 +528,44 @@ public class MainActivity extends Activity {
     if(loading)return;loading=true;
     client.fetch(new FeedClient.Callback(){
       @Override public void loaded(JSONObject response){
-        runOnUiThread(()->{data=response;online=true;error=null;loading=false;render();});
+        runOnUiThread(()->{
+          data=response;online=true;error=null;loading=false;
+          lastScorePoll=System.currentTimeMillis();render();
+        });
       }
       @Override public void failed(String msg){
         runOnUiThread(()->{error=msg;loading=false;render();});
       }
     });
+  }
+  private void refreshScores(){
+    lastScorePoll=System.currentTimeMillis();
+    client.fetchScores(new FeedClient.Callback(){
+      @Override public void loaded(JSONObject fresh){
+        runOnUiThread(()->{
+          String oldTime=data.optString("sports_updated_at","");
+          String newTime=fresh.optString("generated_at","");
+          if(!newTime.equals(oldTime) && fresh.has("matches")){
+            data=FeedClient.mergeSports(data,fresh);
+            if(foreground)render();
+          }
+        });
+      }
+      @Override public void failed(String message){
+        // Retain last known schedule; the visible freshness indicator explains delays.
+      }
+    });
+  }
+  @Override protected void onResume(){
+    super.onResume();
+    foreground=true;
+    liveHandler.removeCallbacks(liveTicker);
+    liveHandler.postDelayed(liveTicker,60000);
+  }
+  @Override protected void onPause(){
+    foreground=false;
+    liveHandler.removeCallbacks(liveTicker);
+    super.onPause();
   }
   @Override public void onBackPressed(){
     if(match!=null){match=null;render();}
@@ -481,5 +574,8 @@ public class MainActivity extends Activity {
     else if(tab!=0){tab=0;render();}
     else super.onBackPressed();
   }
-  @Override protected void onDestroy(){client.close();super.onDestroy();}
+  @Override protected void onDestroy(){
+    liveHandler.removeCallbacks(liveTicker);
+    client.close();super.onDestroy();
+  }
 }
